@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { AldeaUser } from "@/lib/config";
-import { SETUP, formatDate, normalize, parseSheetDate, type Task, type TaskSection } from "@/lib/tasks";
+import { SETUP, buildSections, formatDate, normalize, parseSheetDate, type Task, type TaskSection } from "@/lib/tasks";
 
 type Props = {
   user: AldeaUser;
@@ -45,10 +45,18 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
     Object.fromEntries(sections.map((section) => [section.id, section.tasks.length > 0]))
   ));
   const [adminListOpen, setAdminListOpen] = useState(false);
+  const [ownerFilter, setOwnerFilter] = useState("ALL");
   const [toast, setToast] = useState("");
   const [isPending, startTransition] = useTransition();
-  const [draft, setDraft] = useState<DraftTask>({ ...initialDraft, owner: owners[0] || "" });
-  const totalOpen = sections.reduce((sum, section) => sum + section.tasks.length, 0);
+  const [draft, setDraft] = useState<DraftTask>({
+    ...initialDraft,
+    owner: user.role === "admin" ? owners[0] || user.owner : user.owner
+  });
+  const displayedTasks = user.role === "admin" && ownerFilter !== "ALL"
+    ? allTasks.filter((task) => task.owner === ownerFilter)
+    : allTasks;
+  const displayedSections = user.role === "admin" ? buildSections(displayedTasks) : sections;
+  const totalOpen = displayedSections.reduce((sum, section) => sum + section.tasks.length, 0);
   const archiveCount = allTasks.filter((task) => normalize(task.status) === "done").length;
 
   useEffect(() => {
@@ -156,10 +164,16 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
     const response = await fetch("/api/admin/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(draft)
+      body: JSON.stringify({
+        ...draft,
+        owner: user.role === "admin" ? draft.owner : user.owner
+      })
     });
     if (!response.ok) return;
-    setDraft({ ...initialDraft, owner: owners[0] || "" });
+    setDraft({
+      ...initialDraft,
+      owner: user.role === "admin" ? owners[0] || user.owner : user.owner
+    });
     refresh("Task created.");
   }
 
@@ -233,7 +247,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
           <span>Total Tasks</span>
           <strong>{totalOpen}</strong>
         </div>
-        {sections.map((section) => (
+        {displayedSections.map((section) => (
           <a href={`#${section.id}`} key={section.id}>
             <span>{section.title}</span>
             <strong>{section.tasks.length}</strong>
@@ -242,7 +256,19 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
       </nav>
 
       {user.role === "admin" ? (
-        <section className="admin-band">
+        <section className="admin-filter-band" aria-label="Admin task filter">
+          <label className="field owner-filter-field">
+            <span>View Tasks For</span>
+            <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+              <option value="ALL">All</option>
+              {owners.map((owner) => <option key={owner}>{owner}</option>)}
+            </select>
+          </label>
+        </section>
+      ) : null}
+
+      <section className="admin-band">
+        {user.role === "admin" ? (
           <div className="admin-controls-header">
             <h2>Admin Controls</h2>
             <button className="archive-button" type="button" onClick={archiveDone} disabled={!archiveCount || isPending}>
@@ -250,59 +276,67 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
               <strong>{archiveCount}</strong>
             </button>
           </div>
-          <form className="create-task" onSubmit={createTask}>
-            <label className="field field-task">
-              <span>New Task</span>
-              <input
-                value={draft.task}
-                onChange={(event) => setDraft({ ...draft, task: event.target.value })}
-                placeholder="New Task"
-                required
-              />
-            </label>
-            <label className="field">
-              <span>Owner</span>
+        ) : (
+          <div className="admin-controls-header">
+            <h2>Create Task</h2>
+          </div>
+        )}
+        <form className="create-task" onSubmit={createTask}>
+          <label className="field field-task">
+            <span>New Task</span>
+            <input
+              value={draft.task}
+              onChange={(event) => setDraft({ ...draft, task: event.target.value })}
+              placeholder="New Task"
+              required
+            />
+          </label>
+          <label className={`field ${user.role !== "admin" ? "locked-field" : ""}`}>
+            <span>Owner</span>
+            {user.role === "admin" ? (
               <select value={draft.owner} onChange={(event) => setDraft({ ...draft, owner: event.target.value })} required>
                 <option value="">Owner</option>
                 {owners.map((owner) => <option key={owner}>{owner}</option>)}
               </select>
-            </label>
-            <label className="field">
-              <span>Area</span>
-              <select value={draft.area} onChange={(event) => setDraft({ ...draft, area: event.target.value })}>
-                <option value="">Area</option>
-                {SETUP.areas.map((area) => <option key={area}>{area}</option>)}
-              </select>
-            </label>
-            <label className="field">
-              <span>Priority</span>
-              <select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value })}>
-                {SETUP.priorities.map((priority) => <option key={priority}>{priority}</option>)}
-              </select>
-            </label>
-            <label className="field">
-              <span>Due Date</span>
-              <input
-                type="date"
-                value={draft.dueDate}
-                onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })}
-              />
-            </label>
-            <label className="field field-next">
-              <span>Next Action</span>
-              <input
-                value={draft.nextAction}
-                onChange={(event) => setDraft({ ...draft, nextAction: event.target.value })}
-                placeholder="Next Action"
-              />
-            </label>
-            <button className="primary-button" type="submit">Create</button>
-          </form>
-        </section>
-      ) : null}
+            ) : (
+              <input value={user.owner} readOnly />
+            )}
+          </label>
+          <label className="field">
+            <span>Area</span>
+            <select value={draft.area} onChange={(event) => setDraft({ ...draft, area: event.target.value })}>
+              <option value="">Area</option>
+              {SETUP.areas.map((area) => <option key={area}>{area}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Priority</span>
+            <select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value })}>
+              {SETUP.priorities.map((priority) => <option key={priority}>{priority}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>Due Date</span>
+            <input
+              type="date"
+              value={draft.dueDate}
+              onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })}
+            />
+          </label>
+          <label className="field field-next">
+            <span>Next Action</span>
+            <input
+              value={draft.nextAction}
+              onChange={(event) => setDraft({ ...draft, nextAction: event.target.value })}
+              placeholder="Next Action"
+            />
+          </label>
+          <button className="primary-button" type="submit">Create</button>
+        </form>
+      </section>
 
       <section className="sections">
-        {sections.map((section) => (
+        {displayedSections.map((section) => (
           <section className="task-section" id={section.id} key={section.id}>
             <button
               className="section-heading toggle-heading"
@@ -494,7 +528,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
             <span className={`toggle-caret ${adminListOpen ? "is-open" : ""}`} aria-hidden="true" />
             <span className="section-title-group">
               <h2>Admin Task List</h2>
-              <strong>{allTasks.length}</strong>
+              <strong>{displayedTasks.length}</strong>
             </span>
           </button>
           {adminListOpen ? <div className="table-wrap">
@@ -510,7 +544,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
                 </tr>
               </thead>
               <tbody>
-                {allTasks.map((task) => (
+                {displayedTasks.map((task) => (
                   <tr key={`${task.taskId}-${task.rowNumber}`}>
                     <td>{task.taskId}</td>
                     <td>{task.task}</td>

@@ -455,6 +455,21 @@ h1 {
   overflow: hidden;
 }
 
+.admin-filter-band {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.58);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+}
+
+.owner-filter-field {
+  min-width: min(260px, 100%);
+}
+
 .toggle-heading {
   background: transparent;
   border: 0;
@@ -520,6 +535,11 @@ h1 {
 
 .create-task > * {
   min-width: 0;
+}
+
+.locked-field input {
+  background: var(--surface-warm);
+  color: var(--text-mid);
 }
 
 .field {

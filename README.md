@@ -19,12 +19,13 @@ Each task appears in only one section, following that priority order.
 - Shared app shell after login
 - Admin and user roles
 - Per-user task visibility
+- Admin owner filtering
 - Server-side Google Sheets reads and writes
 - Task dashboard sections
 - Mark Done
 - Status changes
 - Notes updates
-- Admin task creation
+- Task creation for all approved users
 - Admin task editing and reassignment
 - Admin archive of Done tasks
 
@@ -83,6 +84,9 @@ Example:
 ```
 
 For non-admin users, `owner` must match the `Owner` column in `2_TASKS`.
+Non-admin users can create tasks, but the app always assigns those tasks to their
+own owner name. Admin users can create tasks for any owner and filter the dashboard
+between `All` and individual owners.
 
 Add every approved user to `ALDEA_USERS_JSON` in both `.env.local` and the Vercel
 Environment Variables. Each user needs:

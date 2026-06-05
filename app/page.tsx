@@ -22,7 +22,6 @@ function LoginScreen({ authError }: { authError?: string }) {
     <main className="login-screen">
       <section className="login-panel">
         <img className="login-logo" src="/aldea-logo.png" alt="ALDEA Comporta" />
-        <h1>Task Manager</h1>
         <p className="login-copy">
           Sign in with your approved Google account to see the task dashboard assigned to you.
         </p>
@@ -46,7 +45,7 @@ function AppShell({
     apps: string[];
   };
 }) {
-  const signalUrl = process.env.SIGNAL_APP_URL || "";
+  const signalUrl = process.env.SIGNAL_APP_URL || "https://aldea-signal-capture.vercel.app/";
   const availableApps = [
     {
       id: "task-manager",
@@ -75,8 +74,7 @@ function AppShell({
             <p className="shell-kicker">Workspace</p>
             <h1>Welcome, {user.name}</h1>
             <p className="shell-copy">
-              Choose the ALDEA tool you want to open. Your access is based on your approved
-              Google account.
+              Choose the ALDEA tool you want to open.
             </p>
           </div>
           <form action="/api/auth/logout" method="post">
