@@ -107,8 +107,7 @@ h1 {
   text-transform: uppercase;
 }
 
-.muted,
-.login-copy {
+.muted {
   color: var(--text-mid);
   font-weight: 300;
 }
@@ -125,8 +124,28 @@ h1 {
   background: var(--surface);
   border: 0.5px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 30px 24px;
+  padding: 42px 32px;
   text-align: center;
+}
+
+.login-logo {
+  display: block;
+  height: auto;
+  margin: 0 auto 30px;
+  width: min(220px, 78%);
+}
+
+.login-panel h1 {
+  margin-bottom: 18px;
+}
+
+.login-copy {
+  color: #000;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+  margin: 0 auto 28px;
+  max-width: 300px;
 }
 
 .auth-error {
@@ -184,6 +203,133 @@ h1 {
 
 .ghost-button.danger {
   color: var(--danger);
+}
+
+.shell-screen {
+  min-height: 100vh;
+  padding: 42px 20px;
+}
+
+.shell-panel {
+  background: rgba(255, 255, 255, 0.66);
+  border: 0.5px solid var(--border);
+  border-radius: 18px;
+  margin: 0 auto;
+  max-width: 1040px;
+  padding: 38px;
+}
+
+.shell-topbar {
+  align-items: flex-start;
+  display: flex;
+  gap: 28px;
+  justify-content: space-between;
+}
+
+.shell-logo {
+  display: block;
+  height: auto;
+  margin: 0 0 34px;
+  width: 200px;
+}
+
+.shell-kicker,
+.shell-app-eyebrow,
+.shell-meta span,
+.shell-app-card em {
+  color: var(--text-mid);
+  font-family: var(--font-accent);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-kicker {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.shell-panel h1 {
+  color: var(--text);
+  font-size: clamp(42px, 6vw, 68px);
+  margin-bottom: 14px;
+}
+
+.shell-copy {
+  color: #000;
+  font-size: 17px;
+  line-height: 1.65;
+  margin-bottom: 0;
+  max-width: 560px;
+}
+
+.shell-signout {
+  min-width: 118px;
+}
+
+.shell-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 34px 0 18px;
+}
+
+.shell-meta span {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+.shell-app-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.shell-app-card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: inherit;
+  display: grid;
+  gap: 16px;
+  min-height: 230px;
+  padding: 24px;
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.shell-app-card:hover {
+  border-color: rgba(41, 69, 134, 0.28);
+  box-shadow: 0 18px 42px rgba(41, 69, 134, 0.1);
+  transform: translateY(-2px);
+}
+
+.shell-app-card strong {
+  color: var(--accent);
+  font-family: var(--font-head);
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.shell-app-card span:not(.shell-app-eyebrow) {
+  color: #000;
+  line-height: 1.55;
+}
+
+.shell-app-card em {
+  align-self: end;
+  color: var(--accent);
+  font-size: 14px;
+  font-style: normal;
+}
+
+.shell-app-card.is-disabled {
+  opacity: 0.58;
+  pointer-events: none;
 }
 
 .app-shell {
@@ -900,6 +1046,42 @@ td {
 }
 
 @media (max-width: 860px) {
+  .login-panel {
+    padding: 34px 24px;
+  }
+
+  .shell-screen {
+    padding: 18px 14px 34px;
+  }
+
+  .shell-panel {
+    padding: 24px;
+  }
+
+  .shell-topbar {
+    flex-direction: column;
+  }
+
+  .shell-topbar form {
+    position: absolute;
+    right: 24px;
+    top: 24px;
+  }
+
+  .shell-logo {
+    margin-bottom: 28px;
+    width: 180px;
+  }
+
+  .shell-panel h1 {
+    font-size: 38px;
+    padding-right: 110px;
+  }
+
+  .shell-copy {
+    font-size: 15px;
+  }
+
   .app-shell {
     max-width: 470px;
     padding: 18px 14px 34px;
