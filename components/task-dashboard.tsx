@@ -61,13 +61,24 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
 
   useEffect(() => {
     const message = window.sessionStorage.getItem("aldea-toast");
-    if (!message) return;
+    const savedOwnerFilter = window.sessionStorage.getItem("aldea-owner-filter");
 
-    window.sessionStorage.removeItem("aldea-toast");
-    setToast(message);
-    const timer = window.setTimeout(() => setToast(""), 3600);
-    return () => window.clearTimeout(timer);
+    if (user.role === "admin" && savedOwnerFilter) {
+      setOwnerFilter(savedOwnerFilter);
+    }
+
+    if (message) {
+      window.sessionStorage.removeItem("aldea-toast");
+      setToast(message);
+      const timer = window.setTimeout(() => setToast(""), 3600);
+      return () => window.clearTimeout(timer);
+    }
   }, []);
+
+  function changeOwnerFilter(value: string) {
+    setOwnerFilter(value);
+    window.sessionStorage.setItem("aldea-owner-filter", value);
+  }
 
   function refresh(message?: string) {
     if (message) {
@@ -259,7 +270,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
         <section className="admin-filter-band" aria-label="Admin task filter">
           <label className="field owner-filter-field">
             <span>View Tasks For</span>
-            <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+            <select value={ownerFilter} onChange={(event) => changeOwnerFilter(event.target.value)}>
               <option value="ALL">All</option>
               {owners.map((owner) => <option key={owner}>{owner}</option>)}
             </select>
@@ -299,12 +310,12 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
                 {owners.map((owner) => <option key={owner}>{owner}</option>)}
               </select>
             ) : (
-              <input value={user.owner} readOnly />
+              <input value={user.owner} readOnly required />
             )}
           </label>
           <label className="field">
             <span>Area</span>
-            <select value={draft.area} onChange={(event) => setDraft({ ...draft, area: event.target.value })}>
+            <select value={draft.area} onChange={(event) => setDraft({ ...draft, area: event.target.value })} required>
               <option value="">Area</option>
               {SETUP.areas.map((area) => <option key={area}>{area}</option>)}
             </select>
@@ -321,6 +332,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
               type="date"
               value={draft.dueDate}
               onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })}
+            required
             />
           </label>
           <label className="field field-next">

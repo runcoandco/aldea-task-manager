@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
 
   const owner = user.role === "admin" ? body.owner : user.owner;
 
-  if (!body.task || !owner) {
-    return NextResponse.json({ error: "Task and owner are required" }, { status: 400 });
+  if (!body.task || !owner || !body.area || !body.dueDate) {
+    return NextResponse.json({ error: "Task, owner, area, and due date are required" }, { status: 400 });
   }
 
   await appendTask({

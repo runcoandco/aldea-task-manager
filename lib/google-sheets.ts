@@ -1,5 +1,5 @@
 import { googleServiceAccountConfig, spreadsheetId } from "./config";
-import { TASK_COLUMNS, type Task } from "./tasks";
+import { TASK_COLUMNS, sheetDateValue, type Task } from "./tasks";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SHEETS_BASE_URL = "https://sheets.googleapis.com/v4/spreadsheets";
@@ -117,9 +117,10 @@ export async function updateTaskCells(rowNumber: number, updates: Partial<Record
   Object.entries(updates).forEach(([field, value]) => {
     const column = taskFieldToColumn(field as keyof Task);
     if (!column) return;
+    const cellValue = field === "dueDate" && value ? sheetDateValue(value) : value || "";
     data.push({
       range: `2_TASKS!${column}${rowNumber}`,
-      values: [[value || ""]]
+      values: [[cellValue]]
     });
   });
 
@@ -128,7 +129,7 @@ export async function updateTaskCells(rowNumber: number, updates: Partial<Record
   await sheetsFetch("/values:batchUpdate", {
     method: "POST",
     body: JSON.stringify({
-      valueInputOption: "USER_ENTERED",
+      valueInputOption: "RAW",
       data
     })
   });
@@ -153,7 +154,7 @@ export async function appendTask(input: {
   }, 0) + 1;
   const taskId = `TASK-${String(nextNumber).padStart(4, "0")}`;
 
-  await sheetsFetch(`${valuesPath("2_TASKS!A:K", ":append")}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
+  await sheetsFetch(`${valuesPath("2_TASKS!A:K", ":append")}?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
     method: "POST",
     body: JSON.stringify({
       values: [[
@@ -163,7 +164,7 @@ export async function appendTask(input: {
         input.area,
         input.priority || "Medium",
         input.status || "To Do",
-        input.dueDate,
+        sheetDateValue(input.dueDate),
         input.blocker,
         input.nextAction,
         input.link,
