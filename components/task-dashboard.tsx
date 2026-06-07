@@ -9,6 +9,7 @@ type Props = {
   sections: TaskSection[];
   owners: string[];
   allTasks: Task[];
+  signalUrl: string;
 };
 
 type DraftTask = {
@@ -37,7 +38,7 @@ const initialDraft: DraftTask = {
   notes: ""
 };
 
-export default function TaskDashboard({ user, sections, owners, allTasks }: Props) {
+export default function TaskDashboard({ user, sections, owners, allTasks, signalUrl }: Props) {
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editDrafts, setEditDrafts] = useState<Record<string, Partial<DraftTask>>>({});
@@ -61,24 +62,13 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
 
   useEffect(() => {
     const message = window.sessionStorage.getItem("aldea-toast");
-    const savedOwnerFilter = window.sessionStorage.getItem("aldea-owner-filter");
+    if (!message) return;
 
-    if (user.role === "admin" && savedOwnerFilter) {
-      setOwnerFilter(savedOwnerFilter);
-    }
-
-    if (message) {
-      window.sessionStorage.removeItem("aldea-toast");
-      setToast(message);
-      const timer = window.setTimeout(() => setToast(""), 3600);
-      return () => window.clearTimeout(timer);
-    }
+    window.sessionStorage.removeItem("aldea-toast");
+    setToast(message);
+    const timer = window.setTimeout(() => setToast(""), 3600);
+    return () => window.clearTimeout(timer);
   }, []);
-
-  function changeOwnerFilter(value: string) {
-    setOwnerFilter(value);
-    window.sessionStorage.setItem("aldea-owner-filter", value);
-  }
 
   function refresh(message?: string) {
     if (message) {
@@ -248,9 +238,13 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
             {user.role === "admin" ? "Admin Access" : "Personal View"}
           </p>
         </div>
-        <form action="/api/auth/logout" method="post">
-          <button className="ghost-button sign-out-button" type="submit" aria-label="Sign Out">Sign Out</button>
-        </form>
+        <div className="topbar-actions">
+          <a className="ghost-button" href="/">Workspace Home</a>
+          {user.apps.includes("signal") ? <a className="ghost-button" href={signalUrl}>Signal</a> : null}
+          <form action="/api/auth/logout" method="post">
+            <button className="ghost-button sign-out-button" type="submit" aria-label="Sign Out">Sign Out</button>
+          </form>
+        </div>
       </header>
 
       <nav className="counter-bar" aria-label="Task sections">
@@ -270,7 +264,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
         <section className="admin-filter-band" aria-label="Admin task filter">
           <label className="field owner-filter-field">
             <span>View Tasks For</span>
-            <select value={ownerFilter} onChange={(event) => changeOwnerFilter(event.target.value)}>
+            <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
               <option value="ALL">All</option>
               {owners.map((owner) => <option key={owner}>{owner}</option>)}
             </select>
@@ -310,12 +304,12 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
                 {owners.map((owner) => <option key={owner}>{owner}</option>)}
               </select>
             ) : (
-              <input value={user.owner} readOnly required />
+              <input value={user.owner} readOnly />
             )}
           </label>
           <label className="field">
             <span>Area</span>
-            <select value={draft.area} onChange={(event) => setDraft({ ...draft, area: event.target.value })} required>
+            <select value={draft.area} onChange={(event) => setDraft({ ...draft, area: event.target.value })}>
               <option value="">Area</option>
               {SETUP.areas.map((area) => <option key={area}>{area}</option>)}
             </select>
@@ -332,7 +326,6 @@ export default function TaskDashboard({ user, sections, owners, allTasks }: Prop
               type="date"
               value={draft.dueDate}
               onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })}
-            required
             />
           </label>
           <label className="field field-next">

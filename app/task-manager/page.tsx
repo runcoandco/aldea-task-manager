@@ -25,6 +25,7 @@ export default async function TaskManagerPage() {
       sections={buildSections(visibleTasks)}
       owners={owners}
       allTasks={visibleTasks}
+      signalUrl="/api/signal/launch"
     />
   );
 }

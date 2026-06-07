@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
   }
 
   const user = findApprovedUser(email);
-  if (!user || !user.apps.includes("task-manager")) {
+  if (!user || user.apps.length === 0) {
     return NextResponse.redirect(`${appUrl()}/?auth=not-approved`);
   }
 

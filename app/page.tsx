@@ -23,7 +23,7 @@ function LoginScreen({ authError }: { authError?: string }) {
       <section className="login-panel">
         <img className="login-logo" src="/aldea-logo.png" alt="ALDEA Comporta" />
         <p className="login-copy">
-          Sign in with your approved Google account to see the task dashboard assigned to you.
+          Sign in with your approved Google account to open your ALDEA workspace.
         </p>
         {message ? <p className="auth-error">{message}</p> : null}
         <form action="/api/auth/google">
@@ -45,7 +45,6 @@ function AppShell({
     apps: string[];
   };
 }) {
-  const signalUrl = process.env.SIGNAL_APP_URL || "https://aldea-signal-capture.vercel.app/";
   const availableApps = [
     {
       id: "task-manager",
@@ -58,10 +57,10 @@ function AppShell({
     {
       id: "signal",
       eyebrow: "Sales CRM",
-      title: "Signal Tracker",
+      title: "Signal",
       description: "Log lead signals and next steps from active sales opportunities.",
-      href: signalUrl,
-      enabled: Boolean(signalUrl)
+      href: "/api/signal/launch",
+      enabled: true
     }
   ].filter((app) => user.apps.includes(app.id));
 
@@ -119,7 +118,7 @@ function authErrorMessage(code: string) {
     "missing-code": "Google did not return a login code. Please try again.",
     "token-failed": "Google login could not be completed. Please try again.",
     "email-unverified": "Please use a verified Google account.",
-    "not-approved": "This Google account is not approved for ALDEA Task Manager."
+    "not-approved": "This Google account is not approved for the ALDEA workspace."
   };
 
   return messages[code] || "Login could not be completed. Please try again.";
