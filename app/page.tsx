@@ -58,7 +58,7 @@ function AppShell({
     {
       id: "signal",
       eyebrow: "Sales CRM",
-      title: "Signal",
+      title: "Signal Tracker",
       description: "Log lead signals and next steps from active sales opportunities.",
       href: signalUrl,
       enabled: Boolean(signalUrl)
