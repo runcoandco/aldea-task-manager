@@ -29,7 +29,7 @@ Each task appears in only one section, following that priority order.
 - Admin task editing and reassignment
 - Admin archive of Done tasks
 
-Daily email reminders come after this core app is stable.
+Daily email reminders are handled in the Task Master Google Sheet with a bound Apps Script.
 
 ## Environment
 
@@ -67,7 +67,7 @@ Example:
 ```json
 [
   {
-    "email": "joaquin@aldea.example",
+    "email": "jbrillembourg@gmail.com",
     "name": "Joaquin",
     "owner": "Joaquin",
     "signalOwner": "Joaquin Brillembourg",
@@ -75,11 +75,56 @@ Example:
     "apps": ["task-manager", "signal"]
   },
   {
-    "email": "gustavo@aldea.example",
+    "email": "manusalvatierra@gmail.com",
+    "name": "Manuela",
+    "owner": "Manuela",
+    "signalOwner": "Manuela Salvatierra",
+    "role": "admin",
+    "apps": ["task-manager", "signal"]
+  },
+  {
+    "email": "jsalvat86@gmail.com",
+    "name": "Jimena",
+    "owner": "Jimena",
+    "signalOwner": "Jimena Salvatierra",
+    "role": "user",
+    "apps": ["task-manager", "signal"]
+  },
+  {
+    "email": "gustavomoncada5@gmail.com",
     "name": "Gustavo",
     "owner": "Gustavo",
     "role": "user",
-    "apps": ["task-manager"]
+    "apps": ["task-manager", "signal"]
+  },
+  {
+    "email": "pedromazamezzoni@gmail.com",
+    "name": "Pedro",
+    "owner": "Pedro",
+    "role": "user",
+    "apps": ["task-manager", "signal"]
+  },
+  {
+    "email": "montanarella.marina@gmail.com",
+    "name": "Marina",
+    "owner": "Marina",
+    "role": "user",
+    "apps": ["task-manager", "signal"]
+  },
+  {
+    "email": "mafaldacpestana@gmail.com",
+    "name": "Mafalda",
+    "owner": "Mafalda",
+    "role": "user",
+    "apps": ["task-manager", "signal"]
+  },
+  {
+    "email": "cristianroberts@gmail.com",
+    "name": "Cristián",
+    "owner": "Cristián",
+    "signalOwner": "Cristián Roberts",
+    "role": "user",
+    "apps": ["task-manager", "signal"]
   }
 ]
 ```
@@ -101,6 +146,23 @@ Environment Variables. Each user needs:
 
 If `SIGNAL_APP_URL` is set, users with `signal` in their apps can open Signal from
 the shell. If it is blank, Signal appears as Coming Soon.
+
+## Due Date Email Reminders
+
+The Task Manager spreadsheet can send morning reminders directly from Google Apps Script.
+
+Reminder rule:
+
+- send one email when a task is due today and still not `Done`
+- send one extra email 7 days later if the task is still not `Done`
+
+Setup:
+
+- add `Owner` in column A and `Email` in column B of `0_SETUP`
+- paste `Task_Manager_Due_Date_Reminders.gs` into the Task Master spreadsheet Apps Script
+- run `installTaskReminderTrigger()` once to create the daily morning trigger
+
+The reminder email includes the task details, due date, blocker, next action, link, and notes.
 
 ## Development
 
