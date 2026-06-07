@@ -4,6 +4,7 @@ export type AldeaUser = {
   email: string;
   name: string;
   owner: string;
+  signalOwner?: string;
   role: AldeaRole;
   apps: string[];
 };

@@ -70,6 +70,7 @@ Example:
     "email": "joaquin@aldea.example",
     "name": "Joaquin",
     "owner": "Joaquin",
+    "signalOwner": "Joaquin Brillembourg",
     "role": "admin",
     "apps": ["task-manager", "signal"]
   },
@@ -94,6 +95,7 @@ Environment Variables. Each user needs:
 - `email`: the Google account they will use to sign in
 - `name`: the display name in the app
 - `owner`: the exact owner name from the sheet
+- `signalOwner`: the exact owner name from Signal's CRM sheet, when different from `owner`
 - `role`: `admin` or `user`
 - `apps`: `task-manager`, `signal`, or both
 

@@ -201,6 +201,22 @@ h1 {
   color: var(--text-mid);
 }
 
+.icon-link {
+  height: 40px;
+  padding: 0;
+  width: 40px;
+}
+
+.icon-link svg {
+  fill: none;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 18px;
+}
+
 .ghost-button.danger {
   color: var(--danger);
 }

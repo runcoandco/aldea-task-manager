@@ -239,10 +239,18 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
           </p>
         </div>
         <div className="topbar-actions">
-          <a className="ghost-button" href="/">Workspace Home</a>
-          {user.apps.includes("signal") ? <a className="ghost-button" href={signalUrl}>Signal</a> : null}
+          <a className="icon-link" href="/" aria-label="Workspace Home" title="Workspace Home">
+            <AppGridIcon />
+          </a>
+          {user.apps.includes("signal") ? (
+            <a className="icon-link" href={signalUrl} aria-label="Open Signal" title="Open Signal">
+              <SignalIcon />
+            </a>
+          ) : null}
           <form action="/api/auth/logout" method="post">
-            <button className="ghost-button sign-out-button" type="submit" aria-label="Sign Out">Sign Out</button>
+            <button className="icon-link sign-out-button" type="submit" aria-label="Sign Out" title="Sign Out">
+              <SignOutIcon />
+            </button>
           </form>
         </div>
       </header>
@@ -566,6 +574,18 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
       ) : null}
     </main>
   );
+}
+
+function AppGridIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>;
+}
+
+function SignalIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 17.5 3.5 21l3.8-1.2A9 9 0 1 0 5 17.5Z" /><path d="M8 12h8M8 8.5h5M8 15.5h6" /></svg>;
+}
+
+function SignOutIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9" /></svg>;
 }
 
 function titleCase(value: string) {
