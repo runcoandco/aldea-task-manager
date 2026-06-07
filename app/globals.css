@@ -648,6 +648,15 @@ input[type="date"]::-webkit-datetime-edit-text {
   width: 100%;
 }
 
+.create-task-error {
+  color: var(--danger);
+  font-family: var(--font-accent);
+  font-size: 13px;
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: left;
+}
+
 select {
   font-family: var(--font-accent);
 }
@@ -1178,18 +1187,6 @@ td {
     grid-column: auto;
   }
 
-  .sign-out-button {
-    border-radius: 999px;
-    font-size: 0;
-    min-height: 42px;
-    min-width: 42px;
-    padding: 0;
-  }
-
-  .sign-out-button::before {
-    content: "Out";
-    font-size: 12px;
-  }
 }
 
 @media (max-width: 420px) {

@@ -48,6 +48,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
   const [adminListOpen, setAdminListOpen] = useState(false);
   const [ownerFilter, setOwnerFilter] = useState("ALL");
   const [toast, setToast] = useState("");
+  const [createError, setCreateError] = useState("");
   const [isPending, startTransition] = useTransition();
   const [draft, setDraft] = useState<DraftTask>({
     ...initialDraft,
@@ -162,6 +163,10 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
 
   async function createTask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setCreateError("");
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+
     const response = await fetch("/api/admin/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -170,7 +175,11 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
         owner: user.role === "admin" ? draft.owner : user.owner
       })
     });
-    if (!response.ok) return;
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      setCreateError(body?.error || "Please add a task, owner, area, and due date.");
+      return;
+    }
     setDraft({
       ...initialDraft,
       owner: user.role === "admin" ? owners[0] || user.owner : user.owner
@@ -255,6 +264,18 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
         </div>
       </header>
 
+      {user.role === "admin" ? (
+        <section className="admin-filter-band" aria-label="Admin task filter">
+          <label className="field owner-filter-field">
+            <span>View Tasks For</span>
+            <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+              <option value="ALL">All</option>
+              {owners.map((owner) => <option key={owner}>{owner}</option>)}
+            </select>
+          </label>
+        </section>
+      ) : null}
+
       <nav className="counter-bar" aria-label="Task sections">
         <div className="pending-box">
           <span>Total Tasks</span>
@@ -267,18 +288,6 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
           </a>
         ))}
       </nav>
-
-      {user.role === "admin" ? (
-        <section className="admin-filter-band" aria-label="Admin task filter">
-          <label className="field owner-filter-field">
-            <span>View Tasks For</span>
-            <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
-              <option value="ALL">All</option>
-              {owners.map((owner) => <option key={owner}>{owner}</option>)}
-            </select>
-          </label>
-        </section>
-      ) : null}
 
       <section className="admin-band">
         {user.role === "admin" ? (
@@ -317,7 +326,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
           </label>
           <label className="field">
             <span>Area</span>
-            <select value={draft.area} onChange={(event) => setDraft({ ...draft, area: event.target.value })}>
+            <select value={draft.area} onChange={(event) => setDraft({ ...draft, area: event.target.value })} required>
               <option value="">Area</option>
               {SETUP.areas.map((area) => <option key={area}>{area}</option>)}
             </select>
@@ -334,6 +343,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
               type="date"
               value={draft.dueDate}
               onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })}
+              required
             />
           </label>
           <label className="field field-next">
@@ -345,6 +355,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
             />
           </label>
           <button className="primary-button" type="submit">Create</button>
+          {createError ? <p className="create-task-error" role="alert">{createError}</p> : null}
         </form>
       </section>
 
