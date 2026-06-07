@@ -25,8 +25,9 @@ Each task appears in only one section, following that priority order.
 - Mark Done
 - Status changes
 - Notes updates
-- Task creation for all approved users
-- Admin task editing and reassignment
+- Task creation for all approved users, with selectable owners
+- Task editing and reassignment
+- Task deletion from edit mode
 - Admin archive of Done tasks
 
 Daily email reminders are handled in the Task Master Google Sheet with a bound Apps Script.
@@ -130,9 +131,9 @@ Example:
 ```
 
 For non-admin users, `owner` must match the `Owner` column in `2_TASKS`.
-Non-admin users can create tasks, but the app always assigns those tasks to their
-own owner name. Admin users can create tasks for any owner and filter the dashboard
-between `All` and individual owners.
+Any approved user can create tasks and choose any approved owner from the sheet.
+Tasks stay visible to the assigned owner, the creator, and admins, so the person who logged the task can still open Edit Task and delete a mistake or duplicate.
+Admin users can also filter the dashboard between `All` and individual owners.
 
 Add every approved user to `ALDEA_USERS_JSON` in both `.env.local` and the Vercel
 Environment Variables. Each user needs:
@@ -158,6 +159,7 @@ Reminder rule:
 
 Setup:
 
+- add `Created By` as column `L` in `2_TASKS` if it is not there yet
 - add `Owner` in column A and `Email` in column B of `0_SETUP`
 - paste `Task_Manager_Due_Date_Reminders.gs` into the Task Master spreadsheet Apps Script
 - run `installTaskReminderTrigger()` once to create the daily morning trigger

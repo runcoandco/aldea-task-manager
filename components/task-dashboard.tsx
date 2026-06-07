@@ -52,7 +52,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
   const [isPending, startTransition] = useTransition();
   const [draft, setDraft] = useState<DraftTask>({
     ...initialDraft,
-    owner: user.role === "admin" ? owners[0] || user.owner : user.owner
+    owner: user.owner
   });
   const displayedTasks = user.role === "admin" && ownerFilter !== "ALL"
     ? allTasks.filter((task) => task.owner === ownerFilter)
@@ -171,8 +171,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...draft,
-        owner: user.role === "admin" ? draft.owner : user.owner
+        ...draft
       })
     });
     if (!response.ok) {
@@ -182,9 +181,27 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
     }
     setDraft({
       ...initialDraft,
-      owner: user.role === "admin" ? owners[0] || user.owner : user.owner
+      owner: user.owner
     });
     refresh("Task created.");
+  }
+
+  async function deleteTask(task: Task) {
+    const confirmed = window.confirm(
+      `Delete "${task.task}"? This will permanently remove the task from the sheet.`
+    );
+    if (!confirmed) return;
+
+    setPendingTaskId(task.taskId);
+    const response = await fetch(`/api/admin/tasks/${encodeURIComponent(task.taskId)}`, {
+      method: "DELETE"
+    });
+    if (!response.ok) {
+      setPendingTaskId(null);
+      alert("Task delete failed.");
+      return;
+    }
+    refresh("Task deleted.");
   }
 
   async function archiveDone() {
@@ -313,16 +330,12 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
               required
             />
           </label>
-          <label className={`field ${user.role !== "admin" ? "locked-field" : ""}`}>
+          <label className="field">
             <span>Owner</span>
-            {user.role === "admin" ? (
-              <select value={draft.owner} onChange={(event) => setDraft({ ...draft, owner: event.target.value })} required>
-                <option value="">Owner</option>
-                {owners.map((owner) => <option key={owner}>{owner}</option>)}
-              </select>
-            ) : (
-              <input value={user.owner} readOnly />
-            )}
+            <select value={draft.owner} onChange={(event) => setDraft({ ...draft, owner: event.target.value })} required>
+              <option value="">Owner</option>
+              {owners.map((owner) => <option key={owner}>{owner}</option>)}
+            </select>
           </label>
           <label className="field">
             <span>Area</span>
@@ -376,7 +389,11 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
             {openSections[section.id] && section.tasks.length ? (
               <div className="task-list">
                 {section.tasks.map((task) => {
-                  const isEditing = user.role === "admin" && editingTaskId === task.taskId;
+                  const canEdit =
+                    user.role === "admin" ||
+                    normalize(task.owner) === normalize(user.owner) ||
+                    normalize(task.createdBy) === normalize(user.email);
+                  const isEditing = canEdit && editingTaskId === task.taskId;
                   const priorityValue = isEditing ? editValue(task, "priority") : task.priority;
                   const statusValue = isEditing ? editValue(task, "status") : task.status;
                   const blockerValue = isEditing ? editValue(task, "blocker") : task.blocker;
@@ -472,7 +489,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                         <button className="primary-button compact save-action" type="button" onClick={() => saveTaskDetails(task)}>
                           Save Details
                         </button>
-                      ) : user.role === "admin" ? (
+                      ) : canEdit ? (
                         <button className="secondary-action" type="button" onClick={() => toggleEdit(task)}>
                           Edit Task
                         </button>
@@ -516,6 +533,16 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                       >
                           Mark Done
                       </button>
+                      {isEditing ? (
+                        <button
+                          className="secondary-action danger"
+                          type="button"
+                          onClick={() => deleteTask(task)}
+                          disabled={pendingTaskId === task.taskId || isPending}
+                        >
+                          Delete Task
+                        </button>
+                      ) : null}
                     </div>
                     {!isEditing && task.notes ? (
                       <div className="note-preview">

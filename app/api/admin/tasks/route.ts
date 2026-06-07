@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { appendTask } from "@/lib/google-sheets";
+import { appendTask, getSetupOwners } from "@/lib/google-sheets";
 import { currentUser } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user.apps.includes("task-manager")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json() as {
     task?: string;
@@ -19,10 +20,15 @@ export async function POST(request: NextRequest) {
     notes?: string;
   };
 
-  const owner = user.role === "admin" ? body.owner : user.owner;
+  const owners = await getSetupOwners();
+  const owner = String(body.owner || "").trim();
 
   if (!body.task || !owner || !body.area || !body.dueDate) {
     return NextResponse.json({ error: "Task, owner, area, and due date are required" }, { status: 400 });
+  }
+
+  if (!owners.includes(owner)) {
+    return NextResponse.json({ error: "Invalid owner" }, { status: 400 });
   }
 
   await appendTask({
@@ -35,7 +41,8 @@ export async function POST(request: NextRequest) {
     blocker: body.blocker || "",
     nextAction: body.nextAction || "",
     link: body.link || "",
-    notes: body.notes || ""
+    notes: body.notes || "",
+    createdBy: user.email
   });
 
   return NextResponse.json({ success: true });

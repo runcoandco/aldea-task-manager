@@ -94,7 +94,7 @@ function valuesPath(range: string, suffix = "") {
 }
 
 export async function getTaskRows(): Promise<Task[]> {
-  const response = await sheetsFetch(`${valuesPath("2_TASKS!A2:K1000")}?valueRenderOption=UNFORMATTED_VALUE`);
+  const response = await sheetsFetch(`${valuesPath("2_TASKS!A2:L1000")}?valueRenderOption=UNFORMATTED_VALUE`);
   const data = await response.json() as { values?: unknown[][] };
 
   return (data.values || [])
@@ -146,6 +146,7 @@ export async function appendTask(input: {
   nextAction: string;
   link: string;
   notes: string;
+  createdBy: string;
 }) {
   const tasks = await getTaskRows();
   const nextNumber = tasks.reduce((max, task) => {
@@ -154,7 +155,7 @@ export async function appendTask(input: {
   }, 0) + 1;
   const taskId = `TASK-${String(nextNumber).padStart(4, "0")}`;
 
-  await sheetsFetch(`${valuesPath("2_TASKS!A:K", ":append")}?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+  await sheetsFetch(`${valuesPath("2_TASKS!A:L", ":append")}?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
     method: "POST",
     body: JSON.stringify({
       values: [[
@@ -168,7 +169,8 @@ export async function appendTask(input: {
         input.blocker,
         input.nextAction,
         input.link,
-        input.notes
+        input.notes,
+        input.createdBy
       ]]
     })
   });
@@ -180,7 +182,7 @@ export async function archiveDoneTasks() {
   if (!doneTasks.length) return 0;
 
   const archivedAt = new Date().toISOString();
-  await sheetsFetch(`${valuesPath("3_ARCHIVE!A:L", ":append")}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
+  await sheetsFetch(`${valuesPath("3_ARCHIVE!A:M", ":append")}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
     method: "POST",
     body: JSON.stringify({
       values: doneTasks.map((task) => [
@@ -195,6 +197,7 @@ export async function archiveDoneTasks() {
         task.nextAction,
         task.link,
         task.notes,
+        task.createdBy,
         archivedAt
       ])
     })
@@ -202,6 +205,32 @@ export async function archiveDoneTasks() {
 
   await batchDeleteRows(doneTasks.map((task) => task.rowNumber));
   return doneTasks.length;
+}
+
+export async function deleteTaskRow(rowNumber: number) {
+  const metadata = await getSpreadsheetMetadata();
+  const taskSheetId = metadata.sheets.find((sheet) => sheet.properties.title === "2_TASKS")?.properties.sheetId;
+  if (typeof taskSheetId !== "number") {
+    throw new Error("Could not find 2_TASKS sheet ID");
+  }
+
+  await sheetsFetch(":batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId: taskSheetId,
+              dimension: "ROWS",
+              startIndex: rowNumber - 1,
+              endIndex: rowNumber
+            }
+          }
+        }
+      ]
+    })
+  });
 }
 
 async function batchDeleteRows(rowNumbers: number[]) {
@@ -252,7 +281,8 @@ function rowToTask(row: unknown[], rowNumber: number): Task {
     blocker: value(7),
     nextAction: value(8),
     link: value(9),
-    notes: value(10)
+    notes: value(10),
+    createdBy: value(11)
   };
 }
 
@@ -268,7 +298,8 @@ function taskFieldToColumn(field: keyof Task) {
     blocker: "H",
     nextAction: "I",
     link: "J",
-    notes: "K"
+    notes: "K",
+    createdBy: "L"
   };
   return map[field];
 }

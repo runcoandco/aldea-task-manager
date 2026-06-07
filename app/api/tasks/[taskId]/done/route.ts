@@ -9,6 +9,7 @@ export async function PATCH(
 ) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user.apps.includes("task-manager")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { taskId } = await context.params;
   const task = (await getTaskRows()).find((item) => item.taskId === taskId);

@@ -9,7 +9,8 @@ export const TASK_COLUMNS = [
   "Blocker",
   "Next Action",
   "Link",
-  "Notes"
+  "Notes",
+  "Created By"
 ] as const;
 
 export const SETUP = {
@@ -34,6 +35,7 @@ export type Task = {
   nextAction: string;
   link: string;
   notes: string;
+  createdBy: string;
 };
 
 export type TaskSectionId = "overdue" | "blocked" | "waiting" | "this-week" | "priority";
