@@ -38,6 +38,8 @@ const initialDraft: DraftTask = {
   notes: ""
 };
 
+const OWNER_FILTER_STORAGE_KEY = "aldea-owner-filter";
+
 export default function TaskDashboard({ user, sections, owners, allTasks, signalUrl }: Props) {
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -71,9 +73,32 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (user.role !== "admin") return;
+
+    const savedFilter = window.sessionStorage.getItem(OWNER_FILTER_STORAGE_KEY);
+    if (!savedFilter) return;
+
+    const isValidFilter = savedFilter === "ALL" || owners.includes(savedFilter);
+    if (isValidFilter) {
+      setOwnerFilter(savedFilter);
+      return;
+    }
+
+    window.sessionStorage.removeItem(OWNER_FILTER_STORAGE_KEY);
+  }, [owners, user.role]);
+
+  useEffect(() => {
+    if (user.role !== "admin") return;
+    window.sessionStorage.setItem(OWNER_FILTER_STORAGE_KEY, ownerFilter);
+  }, [ownerFilter, user.role]);
+
   function refresh(message?: string) {
     if (message) {
       window.sessionStorage.setItem("aldea-toast", message);
+    }
+    if (user.role === "admin") {
+      window.sessionStorage.setItem(OWNER_FILTER_STORAGE_KEY, ownerFilter);
     }
     startTransition(() => {
       window.location.reload();
