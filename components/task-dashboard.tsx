@@ -309,7 +309,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
       <section className="admin-band">
         {user.role === "admin" ? (
           <div className="admin-controls-header">
-            <h2>Admin Controls</h2>
+            <h2>Create New Task</h2>
             <button className="archive-button" type="button" onClick={archiveDone} disabled={!archiveCount || isPending}>
               <span>Archive Done</span>
               <strong>{archiveCount}</strong>
@@ -317,7 +317,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
           </div>
         ) : (
           <div className="admin-controls-header">
-            <h2>Create Task</h2>
+            <h2>Create New Task</h2>
           </div>
         )}
         <form className="create-task" onSubmit={createTask}>

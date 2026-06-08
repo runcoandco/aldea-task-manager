@@ -737,7 +737,7 @@ textarea:focus {
 .all-tasks h2 {
   color: var(--title);
   font-family: var(--font-accent);
-  font-size: 17px;
+  font-size: 24px;
   font-weight: 400;
   letter-spacing: 0.08em;
   margin: 0;
@@ -758,13 +758,15 @@ textarea:focus {
 }
 
 .toggle-caret {
-  border-bottom: 1.5px solid var(--text-mid);
-  border-right: 1.5px solid var(--text-mid);
+  border-bottom: 2.5px solid var(--accent);
+  border-right: 2.5px solid var(--accent);
   display: block;
-  height: 9px;
+  flex: 0 0 auto;
+  height: 16px;
+  margin: 0 5px 0 3px;
   transform: rotate(45deg);
   transition: transform 0.16s ease;
-  width: 9px;
+  width: 16px;
 }
 
 .toggle-caret.is-open {
@@ -978,21 +980,21 @@ textarea:focus {
   font-family: var(--font-accent);
   font-size: 16px;
   font-weight: 700;
-  min-height: 50px;
+  min-height: 38px;
   padding-left: 18px;
   padding-right: 42px;
   text-align: center;
 }
 
 .task-actions .primary-button {
-  min-height: 48px;
+  min-height: 38px;
 }
 
 .save-action {
   background: rgba(165, 167, 141, 0.18);
   border-color: rgba(165, 167, 141, 0.36);
   color: #62684e;
-  min-height: 50px !important;
+  min-height: 38px !important;
 }
 
 .save-action:hover {
@@ -1003,7 +1005,7 @@ textarea:focus {
   background: rgba(165, 167, 141, 0.16);
   border-color: rgba(165, 167, 141, 0.28);
   color: #62684e;
-  min-height: 46px;
+  min-height: 38px;
 }
 
 .sign-out-button {
@@ -1023,7 +1025,7 @@ textarea:focus {
   color: var(--accent);
   cursor: pointer;
   font-family: var(--font-accent);
-  min-height: 42px;
+  min-height: 38px;
   padding: 0 12px;
 }
 

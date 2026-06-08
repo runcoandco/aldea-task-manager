@@ -23,6 +23,7 @@ var CONFIG = {
   SETUP_DATA_START_ROW: 2,
   OWNER_COL: 1, // A
   EMAIL_COL: 2, // B
+  APP_URL: 'https://aldea-task-manager.vercel.app/task-manager',
   NOTIFICATION_FROM: '',
   NOTIFICATION_FROM_NAME: 'ALDEA Task Manager',
   DUE_REMINDER_DAYS: 0,
@@ -267,7 +268,7 @@ function buildReminderPlainBody_(ss, task, reminderType, dueDate, timezone, days
     'Link: ' + (task.link || '-'),
     'Notes: ' + (task.notes || '-'),
     '',
-    'Task Manager sheet: ' + ss.getUrl()
+    'Open Task Manager: ' + CONFIG.APP_URL
   ].join('\n');
 }
 
@@ -293,7 +294,7 @@ function buildReminderHtmlBody_(ss, task, reminderType, dueDate, timezone, daysF
     rowHtml_('Link', task.link || '-') +
     rowHtml_('Notes', task.notes || '-') +
     '</table>' +
-    '<p><a href="' + ss.getUrl() + '" style="display:inline-block;background:#8B6C59;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;">Open Task Master Sheet</a></p>'
+    '<p><a href="' + CONFIG.APP_URL + '" style="display:inline-block;background:#8B6C59;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;">Open Task Manager</a></p>'
   );
 }
 

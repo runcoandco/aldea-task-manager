@@ -165,6 +165,7 @@ Setup:
 - run `installTaskReminderTrigger()` once to create the daily morning trigger
 
 The reminder email includes the task details, due date, blocker, next action, link, and notes.
+Its call-to-action opens the Vercel Task Manager at `https://aldea-task-manager.vercel.app/task-manager`.
 
 ## Development
 
