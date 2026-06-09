@@ -416,8 +416,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                 {section.tasks.map((task) => {
                   const canEdit =
                     user.role === "admin" ||
-                    normalize(task.owner) === normalize(user.owner) ||
-                    normalize(task.createdBy) === normalize(user.email);
+                    normalize(task.owner) === normalize(user.owner);
                   const isEditing = canEdit && editingTaskId === task.taskId;
                   const priorityValue = isEditing ? editValue(task, "priority") : task.priority;
                   const statusValue = isEditing ? editValue(task, "status") : task.status;
