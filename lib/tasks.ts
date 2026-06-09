@@ -10,7 +10,8 @@ export const TASK_COLUMNS = [
   "Next Action",
   "Link",
   "Notes",
-  "Created By"
+  "Created By",
+  "Assigned By"
 ] as const;
 
 export const SETUP = {
@@ -36,9 +37,10 @@ export type Task = {
   link: string;
   notes: string;
   createdBy: string;
+  assignedBy: string;
 };
 
-export type TaskSectionId = "overdue" | "blocked" | "waiting" | "this-week" | "priority";
+export type TaskSectionId = "overdue" | "blocked" | "waiting" | "this-week" | "open";
 
 export type TaskSection = {
   id: TaskSectionId;
@@ -103,7 +105,7 @@ export function classifyTask(task: Task, now = new Date()): TaskSectionId | null
   if (normalize(task.status) === "waiting") return "waiting";
   if (due && dayKey(due) < today) return "overdue";
   if (due && dayKey(due) >= today && dayKey(due) <= today + 7 * 86400 * 1000) return "this-week";
-  if (["urgent", "high"].includes(normalize(task.priority))) return "priority";
+  if (!due || dayKey(due) > today + 7 * 86400 * 1000) return "open";
 
   return null;
 }
@@ -114,7 +116,7 @@ export function buildSections(tasks: Task[]) {
     blocked: { id: "blocked", title: "Blocked", tasks: [] },
     waiting: { id: "waiting", title: "Waiting", tasks: [] },
     "this-week": { id: "this-week", title: "This Week", tasks: [] },
-    priority: { id: "priority", title: "Open Urgent / High Priority", tasks: [] }
+    open: { id: "open", title: "Open Tasks", tasks: [] }
   };
 
   tasks.forEach((task) => {

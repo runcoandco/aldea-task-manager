@@ -94,7 +94,7 @@ function valuesPath(range: string, suffix = "") {
 }
 
 export async function getTaskRows(): Promise<Task[]> {
-  const response = await sheetsFetch(`${valuesPath("2_TASKS!A2:L1000")}?valueRenderOption=UNFORMATTED_VALUE`);
+  const response = await sheetsFetch(`${valuesPath("2_TASKS!A2:M1000")}?valueRenderOption=UNFORMATTED_VALUE`);
   const data = await response.json() as { values?: unknown[][] };
 
   return (data.values || [])
@@ -147,6 +147,7 @@ export async function appendTask(input: {
   link: string;
   notes: string;
   createdBy: string;
+  assignedBy: string;
 }) {
   const tasks = await getTaskRows();
   const nextNumber = tasks.reduce((max, task) => {
@@ -155,7 +156,7 @@ export async function appendTask(input: {
   }, 0) + 1;
   const taskId = `TASK-${String(nextNumber).padStart(4, "0")}`;
 
-  await sheetsFetch(`${valuesPath("2_TASKS!A:L", ":append")}?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+  await sheetsFetch(`${valuesPath("2_TASKS!A:M", ":append")}?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
     method: "POST",
     body: JSON.stringify({
       values: [[
@@ -170,7 +171,8 @@ export async function appendTask(input: {
         input.nextAction,
         input.link,
         input.notes,
-        input.createdBy
+        input.createdBy,
+        input.assignedBy
       ]]
     })
   });
@@ -182,7 +184,7 @@ export async function archiveDoneTasks() {
   if (!doneTasks.length) return 0;
 
   const archivedAt = new Date().toISOString();
-  await sheetsFetch(`${valuesPath("3_ARCHIVE!A:M", ":append")}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
+  await sheetsFetch(`${valuesPath("3_ARCHIVE!A:N", ":append")}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
     method: "POST",
     body: JSON.stringify({
       values: doneTasks.map((task) => [
@@ -198,6 +200,7 @@ export async function archiveDoneTasks() {
         task.link,
         task.notes,
         task.createdBy,
+        task.assignedBy,
         archivedAt
       ])
     })
@@ -282,7 +285,8 @@ function rowToTask(row: unknown[], rowNumber: number): Task {
     nextAction: value(8),
     link: value(9),
     notes: value(10),
-    createdBy: value(11)
+    createdBy: value(11),
+    assignedBy: value(12)
   };
 }
 
@@ -299,7 +303,8 @@ function taskFieldToColumn(field: keyof Task) {
     nextAction: "I",
     link: "J",
     notes: "K",
-    createdBy: "L"
+    createdBy: "L",
+    assignedBy: "M"
   };
   return map[field];
 }

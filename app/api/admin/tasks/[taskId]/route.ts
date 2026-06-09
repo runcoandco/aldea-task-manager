@@ -40,10 +40,12 @@ export async function PATCH(
 
   const nextStatus = body.status ?? task.status;
   const nextBlocker = nextStatus === "Blocked" ? (body.blocker ?? task.blocker) : "";
+  const nextOwner = body.owner ?? task.owner;
+  const ownerChanged = nextOwner.trim() !== task.owner.trim();
 
   await updateTaskCells(task.rowNumber, {
     task: body.task ?? task.task,
-    owner: body.owner ?? task.owner,
+    owner: nextOwner,
     area: body.area ?? task.area,
     priority: body.priority ?? task.priority,
     status: nextStatus,
@@ -51,7 +53,8 @@ export async function PATCH(
     blocker: nextBlocker,
     nextAction: body.nextAction ?? task.nextAction,
     link: body.link ?? task.link,
-    notes: body.notes ?? task.notes
+    notes: body.notes ?? task.notes,
+    assignedBy: ownerChanged ? user.owner : task.assignedBy
   });
 
   return NextResponse.json({ success: true });

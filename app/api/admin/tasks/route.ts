@@ -42,7 +42,8 @@ export async function POST(request: NextRequest) {
     nextAction: body.nextAction || "",
     link: body.link || "",
     notes: body.notes || "",
-    createdBy: user.email
+    createdBy: user.email,
+    assignedBy: user.owner
   });
 
   return NextResponse.json({ success: true });

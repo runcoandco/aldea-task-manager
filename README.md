@@ -8,7 +8,7 @@ The app keeps the current Master Sheet as the source of truth and mirrors the ex
 2. Blocked
 3. Waiting
 4. This Week
-5. Open Urgent / High Priority
+5. Open Tasks
 
 Each task appears in only one section, following that priority order.
 
@@ -132,7 +132,7 @@ Example:
 
 For non-admin users, `owner` must match the `Owner` column in `2_TASKS`.
 Any approved user can create tasks and choose any approved owner from the sheet.
-Tasks stay visible to the assigned owner, the creator, and admins, so the person who logged the task can still open Edit Task and delete a mistake or duplicate.
+Tasks stay visible only to the assigned owner and admins.
 Admin users can also filter the dashboard between `All` and individual owners.
 
 Add every approved user to `ALDEA_USERS_JSON` in both `.env.local` and the Vercel
@@ -150,21 +150,24 @@ the shell. If it is blank, Signal appears as Coming Soon.
 
 ## Due Date Email Reminders
 
-The Task Manager spreadsheet can send morning reminders directly from Google Apps Script.
+The Task Manager spreadsheet can send due-date reminders and assignment notifications directly from Google Apps Script.
 
 Reminder rule:
 
 - send one email when a task is due today and still not `Done`
 - send one extra email 7 days later if the task is still not `Done`
+- send an assignment email when a task is newly assigned or reassigned
 
 Setup:
 
 - add `Created By` as column `L` in `2_TASKS` if it is not there yet
+- add `Assigned By` as column `M` in `2_TASKS`
+- add `Assigned By` before `Archived At` in `3_ARCHIVE`, so `Archived At` moves to column `N`
 - add `Owner` in column A and `Email` in column B of `0_SETUP`
 - paste `Task_Manager_Due_Date_Reminders.gs` into the Task Master spreadsheet Apps Script
-- run `installTaskReminderTrigger()` once to create the daily morning trigger
+- run `installTaskReminderTrigger()` once to create the daily reminder trigger and the assignment polling trigger
 
-The reminder email includes the task details, due date, blocker, next action, link, and notes.
+The emails include the task details, due date, blocker, next action, link, and notes.
 Its call-to-action opens the Vercel Task Manager at `https://aldea-task-manager.vercel.app/task-manager`.
 
 ## Development

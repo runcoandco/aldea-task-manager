@@ -12,6 +12,7 @@
 // Reminder rules:
 // - Send one email on the due date morning when Status != Done
 // - Send one extra email 7 days later when Status != Done
+// - Poll for new assignments and reassignment emails every 15 minutes
 // - Do not send duplicates for the same task/reminder type/date
 // ============================================================
 
@@ -27,14 +28,16 @@ var CONFIG = {
   NOTIFICATION_FROM: '',
   NOTIFICATION_FROM_NAME: 'ALDEA Task Manager',
   DUE_REMINDER_DAYS: 0,
-  FOLLOW_UP_DAYS: 7
+  FOLLOW_UP_DAYS: 7,
+  ASSIGNMENT_POLL_MINUTES: 15
 };
 
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('ALDEA Reminders')
-    .addItem('Install daily trigger', 'installTaskReminderTrigger')
+    .addItem('Install notification triggers', 'installTaskReminderTrigger')
     .addItem('Run reminders now', 'runTaskDueReminders')
+    .addItem('Run assignment scan now', 'runTaskAssignmentNotifications')
     .addToUi();
 }
 
@@ -47,12 +50,18 @@ function installTaskReminderTrigger() {
     .atHour(7)
     .nearMinute(0)
     .create();
+
+  ScriptApp.newTrigger('runTaskAssignmentNotifications')
+    .timeBased()
+    .everyMinutes(CONFIG.ASSIGNMENT_POLL_MINUTES)
+    .create();
 }
 
 function removeTaskReminderTriggers_() {
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === 'runTaskDueReminders') {
+    var handler = triggers[i].getHandlerFunction();
+    if (handler === 'runTaskDueReminders' || handler === 'runTaskAssignmentNotifications') {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
@@ -79,7 +88,7 @@ function runTaskDueReminders() {
     CONFIG.TASK_DATA_START_ROW,
     1,
     lastRow - CONFIG.TASK_DATA_START_ROW + 1,
-    11
+    13
   ).getValues();
 
   var sent = 0;
@@ -115,12 +124,69 @@ function runTaskDueReminders() {
       continue;
     }
 
-    if (hasReminderAlreadyBeenSent_(reminderLog, task.taskId, reminderType, dueKey)) {
+    if (hasNotificationAlreadyBeenSent_(reminderLog, task.taskId, reminderType, dueKey)) {
       continue;
     }
 
     sendReminderEmail_(ss, task, recipient, reminderType, dueDate, timezone, daysFromDue);
-    appendReminderLog_(reminderLog, task, recipient, reminderType, dueKey, timezone);
+    appendNotificationLog_(reminderLog, task, recipient, reminderType, dueKey, buildReminderSubject_(task, reminderType));
+    sent++;
+  }
+
+  return { success: true, sent: sent };
+}
+
+function runTaskAssignmentNotifications() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var taskSheet = ss.getSheetByName(CONFIG.TASK_SHEET);
+  if (!taskSheet) {
+    throw new Error('Missing sheet: ' + CONFIG.TASK_SHEET);
+  }
+
+  var ownerEmailMap = buildOwnerEmailMap_(ss);
+  var reminderLog = ensureReminderLogSheet_(ss);
+  var timezone = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
+  var lastRow = taskSheet.getLastRow();
+
+  if (lastRow < CONFIG.TASK_DATA_START_ROW) {
+    return { success: true, sent: 0 };
+  }
+
+  var values = taskSheet.getRange(
+    CONFIG.TASK_DATA_START_ROW,
+    1,
+    lastRow - CONFIG.TASK_DATA_START_ROW + 1,
+    13
+  ).getValues();
+
+  var sent = 0;
+  for (var i = 0; i < values.length; i++) {
+    var task = rowToTask_(values[i], CONFIG.TASK_DATA_START_ROW + i);
+    if (!task.taskId && !task.task) {
+      continue;
+    }
+
+    if (!isOpenTask_(task.status)) {
+      continue;
+    }
+
+    var recipient = ownerEmailMap[normalizeName_(task.owner)];
+    if (!recipient) {
+      continue;
+    }
+
+    var dueDate = parseTaskDate_(task.dueDate);
+    var assignmentKey = buildAssignmentKey_(task, recipient);
+    if (!assignmentKey) {
+      continue;
+    }
+
+    if (hasNotificationAlreadyBeenSent_(reminderLog, task.taskId, 'assignment', assignmentKey)) {
+      continue;
+    }
+
+    sendAssignmentEmail_(ss, task, recipient, dueDate, timezone);
+    appendNotificationLog_(reminderLog, task, recipient, 'assignment', assignmentKey, buildAssignmentSubject_(task, dueDate, timezone));
     sent++;
   }
 
@@ -140,7 +206,9 @@ function rowToTask_(row, rowNumber) {
     blocker: String(row[7] || '').trim(),
     nextAction: String(row[8] || '').trim(),
     link: String(row[9] || '').trim(),
-    notes: String(row[10] || '').trim()
+    notes: String(row[10] || '').trim(),
+    createdBy: String(row[11] || '').trim(),
+    assignedBy: String(row[12] || '').trim()
   };
 }
 
@@ -184,9 +252,9 @@ function ensureReminderLogSheet_(ss) {
     sheet = ss.insertSheet(CONFIG.LOG_SHEET);
     sheet.getRange(1, 1, 1, 8).setValues([[
       'Timestamp',
-      'Reminder Type',
+      'Notification Type',
       'Task ID',
-      'Due Date',
+      'Event Key',
       'Owner',
       'Recipient Email',
       'Subject',
@@ -198,7 +266,7 @@ function ensureReminderLogSheet_(ss) {
   return sheet;
 }
 
-function hasReminderAlreadyBeenSent_(logSheet, taskId, reminderType, dueKey) {
+function hasNotificationAlreadyBeenSent_(logSheet, taskId, notificationType, eventKey) {
   var lastRow = logSheet.getLastRow();
   if (lastRow < 2) {
     return false;
@@ -208,8 +276,8 @@ function hasReminderAlreadyBeenSent_(logSheet, taskId, reminderType, dueKey) {
   for (var i = 0; i < values.length; i++) {
     var rowReminderType = String(values[i][1] || '').trim();
     var rowTaskId = String(values[i][2] || '').trim();
-    var rowDueKey = String(values[i][3] || '').trim();
-    if (rowReminderType === reminderType && rowTaskId === taskId && rowDueKey === dueKey) {
+    var rowEventKey = String(values[i][3] || '').trim();
+    if (rowReminderType === notificationType && rowTaskId === taskId && rowEventKey === eventKey) {
       return true;
     }
   }
@@ -217,13 +285,12 @@ function hasReminderAlreadyBeenSent_(logSheet, taskId, reminderType, dueKey) {
   return false;
 }
 
-function appendReminderLog_(logSheet, task, recipient, reminderType, dueKey, timezone) {
-  var subject = buildReminderSubject_(task, reminderType);
+function appendNotificationLog_(logSheet, task, recipient, notificationType, eventKey, subject) {
   logSheet.appendRow([
     new Date(),
-    reminderType,
+    notificationType,
     task.taskId,
-    dueKey,
+    eventKey,
     task.owner,
     recipient,
     subject,
@@ -243,6 +310,12 @@ function buildReminderSubject_(task, reminderType) {
     return 'ALDEA Task Follow-up: ' + task.taskId + ' - ' + task.task;
   }
   return 'ALDEA Task Due Today: ' + task.taskId + ' - ' + task.task;
+}
+
+function buildAssignmentSubject_(task, dueDate, timezone) {
+  var assigner = task.assignedBy || 'ALDEA';
+  var dueText = dueDate ? formatTaskDate_(dueDate, timezone) : 'No due date';
+  return assigner + ' assigned you this task due on ' + dueText + ': ' + task.taskId + ' - ' + task.task;
 }
 
 function buildReminderPlainBody_(ss, task, reminderType, dueDate, timezone, daysFromDue) {
@@ -289,6 +362,60 @@ function buildReminderHtmlBody_(ss, task, reminderType, dueDate, timezone, daysF
     rowHtml_('Status', task.status) +
     rowHtml_('Due Date', formatTaskDate_(dueDate, timezone)) +
     rowHtml_('Days from Due', String(daysFromDue)) +
+    rowHtml_('Blocker', task.blocker || '-') +
+    rowHtml_('Next Action', task.nextAction || '-') +
+    rowHtml_('Link', task.link || '-') +
+    rowHtml_('Notes', task.notes || '-') +
+    '</table>' +
+    '<p><a href="' + CONFIG.APP_URL + '" style="display:inline-block;background:#8B6C59;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;">Open Task Manager</a></p>'
+  );
+}
+
+function sendAssignmentEmail_(ss, task, recipient, dueDate, timezone) {
+  var subject = buildAssignmentSubject_(task, dueDate, timezone);
+  var plainBody = buildAssignmentPlainBody_(task, dueDate, timezone);
+  var htmlBody = buildAssignmentHtmlBody_(task, dueDate, timezone);
+  sendEmailFromConfiguredAlias_(recipient, subject, plainBody, htmlBody);
+}
+
+function buildAssignmentPlainBody_(task, dueDate, timezone) {
+  var assigner = task.assignedBy || 'ALDEA';
+  return [
+    'Hi ' + task.owner + ',',
+    '',
+    assigner + ' assigned you this task.',
+    '',
+    'Task ID: ' + task.taskId,
+    'Task: ' + task.task,
+    'Owner: ' + task.owner,
+    'Assigned By: ' + assigner,
+    'Area: ' + task.area,
+    'Priority: ' + task.priority,
+    'Status: ' + task.status,
+    'Due Date: ' + (dueDate ? formatTaskDate_(dueDate, timezone) : '-'),
+    'Blocker: ' + (task.blocker || '-'),
+    'Next Action: ' + (task.nextAction || '-'),
+    'Link: ' + (task.link || '-'),
+    'Notes: ' + (task.notes || '-'),
+    '',
+    'Open Task Manager: ' + CONFIG.APP_URL
+  ].join('\n');
+}
+
+function buildAssignmentHtmlBody_(task, dueDate, timezone) {
+  var assigner = task.assignedBy || 'ALDEA';
+  return (
+    '<p>Hi ' + escapeHtml_(task.owner) + ',</p>' +
+    '<p><strong>' + escapeHtml_(assigner) + ' assigned you this task.</strong></p>' +
+    '<table cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">' +
+    rowHtml_('Task ID', task.taskId) +
+    rowHtml_('Task', task.task) +
+    rowHtml_('Owner', task.owner) +
+    rowHtml_('Assigned By', assigner) +
+    rowHtml_('Area', task.area) +
+    rowHtml_('Priority', task.priority) +
+    rowHtml_('Status', task.status) +
+    rowHtml_('Due Date', dueDate ? formatTaskDate_(dueDate, timezone) : '-') +
     rowHtml_('Blocker', task.blocker || '-') +
     rowHtml_('Next Action', task.nextAction || '-') +
     rowHtml_('Link', task.link || '-') +
@@ -351,6 +478,19 @@ function parseTaskDate_(value) {
   }
 
   return null;
+}
+
+function buildAssignmentKey_(task, recipient) {
+  if (!task.taskId || !task.owner || !recipient) {
+    return '';
+  }
+
+  return [
+    task.taskId,
+    normalizeName_(task.owner),
+    normalizeName_(recipient),
+    normalizeName_(task.assignedBy || task.createdBy || '')
+  ].join('|');
 }
 
 function formatTaskDate_(date, timezone) {
