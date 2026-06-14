@@ -12,13 +12,13 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!user.apps.includes("task-manager")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = await request.json() as { status?: string };
+  const body = await request.json() as { rowNumber?: number; status?: string };
   if (!body.status || !SETUP.statuses.includes(body.status)) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
   const { taskId } = await context.params;
-  const task = (await getTaskRows()).find((item) => item.taskId === taskId);
+  const task = (await getTaskRows()).find((item) => item.taskId === taskId && (!body.rowNumber || item.rowNumber === body.rowNumber));
   if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
   if (!canEditTask(user, task)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

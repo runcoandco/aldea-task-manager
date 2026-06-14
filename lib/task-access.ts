@@ -1,10 +1,10 @@
 import type { AldeaUser } from "./config";
 import type { Task } from "./tasks";
-import { normalize } from "./tasks";
+import { isSensitiveArea, normalize } from "./tasks";
 
 export function canSeeTask(user: AldeaUser, task: Task) {
   if (user.role === "admin") return true;
-  return normalize(task.owner) === normalize(user.owner);
+  return !isSensitiveArea(task.area);
 }
 
 export function canEditTask(user: AldeaUser, task: Task) {

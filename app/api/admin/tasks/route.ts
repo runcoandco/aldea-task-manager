@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { appendTask, getSetupOwners } from "@/lib/google-sheets";
 import { currentUser } from "@/lib/session";
+import { visibleAreas } from "@/lib/tasks";
 
 export async function POST(request: NextRequest) {
   const user = await currentUser();
@@ -29,6 +30,10 @@ export async function POST(request: NextRequest) {
 
   if (!owners.includes(owner)) {
     return NextResponse.json({ error: "Invalid owner" }, { status: 400 });
+  }
+
+  if (!visibleAreas(user.role).includes(body.area)) {
+    return NextResponse.json({ error: "Invalid area" }, { status: 400 });
   }
 
   await appendTask({

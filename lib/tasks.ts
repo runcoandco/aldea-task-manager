@@ -14,8 +14,10 @@ export const TASK_COLUMNS = [
   "Assigned By"
 ] as const;
 
+export const SENSITIVE_AREA = "Sensitive";
+
 export const SETUP = {
-  areas: ["Sales", "Legal", "Finance", "Banks", "Construction", "Marketing", "Operations", "Admin", "Forest Studio", "Network"],
+  areas: ["Sales", "Legal", "Finance", "Banks", "Construction", "Marketing", "Operations", "Admin", "Forest Studio", "Network", SENSITIVE_AREA],
   priorities: ["Urgent", "High", "Medium", "Low"],
   statuses: ["To Do", "Doing", "Waiting", "Blocked", "Done"]
 };
@@ -54,6 +56,16 @@ export function isOpenTask(task: Task) {
 
 export function normalize(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+export function isSensitiveArea(area: string) {
+  return normalize(area) === normalize(SENSITIVE_AREA);
+}
+
+export function visibleAreas(role: "admin" | "user") {
+  return role === "admin"
+    ? SETUP.areas
+    : SETUP.areas.filter((area) => !isSensitiveArea(area));
 }
 
 export function parseSheetDate(value: string) {
@@ -129,6 +141,30 @@ export function buildSections(tasks: Task[]) {
   });
 
   return Object.values(sectionMap);
+}
+
+export function splitDuplicateTasks(tasks: Task[]) {
+  const seen = new Set<string>();
+  const unique: Task[] = [];
+  const duplicates: Task[] = [];
+
+  tasks.forEach((task) => {
+    const key = normalize(task.taskId);
+    if (!key) {
+      unique.push(task);
+      return;
+    }
+
+    if (seen.has(key)) {
+      duplicates.push(task);
+      return;
+    }
+
+    seen.add(key);
+    unique.push(task);
+  });
+
+  return { unique, duplicates };
 }
 
 export function compareTasks(a: Task, b: Task) {

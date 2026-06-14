@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { AldeaUser } from "@/lib/config";
-import { SETUP, buildSections, formatDate, normalize, parseSheetDate, type Task, type TaskSection } from "@/lib/tasks";
+import { SETUP, buildSections, formatDate, normalize, parseSheetDate, visibleAreas, type Task, type TaskSection } from "@/lib/tasks";
 
 type Props = {
   user: AldeaUser;
   sections: TaskSection[];
   owners: string[];
   allTasks: Task[];
+  duplicateTaskIds: string[];
   signalUrl: string;
 };
 
@@ -39,27 +40,33 @@ const initialDraft: DraftTask = {
 };
 
 const OWNER_FILTER_STORAGE_KEY = "aldea-owner-filter";
+const TASK_SEARCH_STORAGE_KEY = "aldea-task-search";
 
-export default function TaskDashboard({ user, sections, owners, allTasks, signalUrl }: Props) {
-  const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+export default function TaskDashboard({ user, sections, owners, allTasks, duplicateTaskIds, signalUrl }: Props) {
+  const [pendingTaskKey, setPendingTaskKey] = useState<string | null>(null);
+  const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
   const [editDrafts, setEditDrafts] = useState<Record<string, Partial<DraftTask>>>({});
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => (
     Object.fromEntries(sections.map((section) => [section.id, section.tasks.length > 0]))
   ));
   const [adminListOpen, setAdminListOpen] = useState(false);
   const [ownerFilter, setOwnerFilter] = useState("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
   const [toast, setToast] = useState("");
   const [createError, setCreateError] = useState("");
   const [isPending, startTransition] = useTransition();
+  const areaOptions = visibleAreas(user.role);
   const [draft, setDraft] = useState<DraftTask>({
     ...initialDraft,
     owner: user.owner
   });
-  const displayedTasks = user.role === "admin" && ownerFilter !== "ALL"
+  const ownerFilteredTasks = ownerFilter !== "ALL"
     ? allTasks.filter((task) => task.owner === ownerFilter)
     : allTasks;
-  const displayedSections = user.role === "admin" ? buildSections(displayedTasks) : sections;
+  const displayedTasks = searchTerm
+    ? ownerFilteredTasks.filter((task) => taskMatchesSearch(task, searchTerm))
+    : ownerFilteredTasks;
+  const displayedSections = buildSections(displayedTasks);
   const totalOpen = displayedSections.reduce((sum, section) => sum + section.tasks.length, 0);
   const archiveCount = allTasks.filter((task) => normalize(task.status) === "done").length;
 
@@ -74,9 +81,11 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
   }, []);
 
   useEffect(() => {
-    if (user.role !== "admin") return;
-
     const savedFilter = window.sessionStorage.getItem(OWNER_FILTER_STORAGE_KEY);
+    const savedSearch = window.sessionStorage.getItem(TASK_SEARCH_STORAGE_KEY);
+    if (savedSearch) {
+      setSearchTerm(savedSearch);
+    }
     if (!savedFilter) return;
 
     const isValidFilter = savedFilter === "ALL" || owners.includes(savedFilter);
@@ -86,20 +95,22 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
     }
 
     window.sessionStorage.removeItem(OWNER_FILTER_STORAGE_KEY);
-  }, [owners, user.role]);
+  }, [owners]);
 
   useEffect(() => {
-    if (user.role !== "admin") return;
     window.sessionStorage.setItem(OWNER_FILTER_STORAGE_KEY, ownerFilter);
-  }, [ownerFilter, user.role]);
+  }, [ownerFilter]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem(TASK_SEARCH_STORAGE_KEY, searchTerm);
+  }, [searchTerm]);
 
   function refresh(message?: string) {
     if (message) {
       window.sessionStorage.setItem("aldea-toast", message);
     }
-    if (user.role === "admin") {
-      window.sessionStorage.setItem(OWNER_FILTER_STORAGE_KEY, ownerFilter);
-    }
+    window.sessionStorage.setItem(OWNER_FILTER_STORAGE_KEY, ownerFilter);
+    window.sessionStorage.setItem(TASK_SEARCH_STORAGE_KEY, searchTerm);
     startTransition(() => {
       window.location.reload();
     });
@@ -109,55 +120,55 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
     const response = await fetch(url, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined
+      body: JSON.stringify(body || {})
     });
     if (!response.ok) {
-      setPendingTaskId(null);
+      setPendingTaskKey(null);
       throw new Error("Request failed");
     }
     refresh(message);
   }
 
   async function markDone(task: Task) {
-    setPendingTaskId(task.taskId);
-    await patch(`/api/tasks/${encodeURIComponent(task.taskId)}/done`, undefined, "Task marked done.");
+    setPendingTaskKey(taskKey(task));
+    await patch(`/api/tasks/${encodeURIComponent(task.taskId)}/done`, { rowNumber: task.rowNumber }, "Task marked done.");
   }
 
   async function updateStatus(task: Task, status: string) {
-    setPendingTaskId(task.taskId);
+    setPendingTaskKey(taskKey(task));
     if (status === "Blocked") {
-      setEditingTaskId(task.taskId);
+      setEditingTaskKey(taskKey(task));
       setEditDrafts((drafts) => ({
         ...drafts,
-        [task.taskId]: { ...(drafts[task.taskId] || {}), status }
+        [taskKey(task)]: { ...(drafts[taskKey(task)] || {}), status }
       }));
-      setPendingTaskId(null);
+      setPendingTaskKey(null);
       return;
     }
-    await patch(`/api/tasks/${encodeURIComponent(task.taskId)}/status`, { status }, `Task moved to ${status}.`);
+    await patch(`/api/tasks/${encodeURIComponent(task.taskId)}/status`, { rowNumber: task.rowNumber, status }, `Task moved to ${status}.`);
   }
 
   async function updateNotes(task: Task, notes: string) {
-    setPendingTaskId(task.taskId);
-    await patch(`/api/tasks/${encodeURIComponent(task.taskId)}/notes`, { notes }, "Notes saved.");
+    setPendingTaskKey(taskKey(task));
+    await patch(`/api/tasks/${encodeURIComponent(task.taskId)}/notes`, { rowNumber: task.rowNumber, notes }, "Notes saved.");
   }
 
   async function updateAdminTask(task: Task, body: Partial<DraftTask>, message = "Task updated.") {
-    setPendingTaskId(task.taskId);
+    setPendingTaskKey(taskKey(task));
     const response = await fetch(`/api/admin/tasks/${encodeURIComponent(task.taskId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ rowNumber: task.rowNumber, ...body })
     });
     if (!response.ok) {
-      setPendingTaskId(null);
+      setPendingTaskKey(null);
       return;
     }
     refresh(message);
   }
 
   function editValue(task: Task, field: keyof DraftTask) {
-    const draftValue = editDrafts[task.taskId]?.[field];
+    const draftValue = editDrafts[taskKey(task)]?.[field];
     if (draftValue !== undefined) return draftValue;
     return String(task[field as keyof Task] || "");
   }
@@ -165,15 +176,15 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
   function setEditValue(task: Task, field: keyof DraftTask, value: string) {
     setEditDrafts((drafts) => ({
       ...drafts,
-      [task.taskId]: {
-        ...(drafts[task.taskId] || {}),
+      [taskKey(task)]: {
+        ...(drafts[taskKey(task)] || {}),
         [field]: value
       }
     }));
   }
 
   async function saveTaskDetails(task: Task) {
-    const taskDraft = editDrafts[task.taskId] || {};
+    const taskDraft = editDrafts[taskKey(task)] || {};
     const blocker = String(taskDraft.blocker ?? task.blocker ?? "").trim();
     const nextAction = String(taskDraft.nextAction ?? task.nextAction ?? "").trim();
     const status = normalize(String(taskDraft.status ?? task.status ?? ""));
@@ -217,12 +228,14 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
     );
     if (!confirmed) return;
 
-    setPendingTaskId(task.taskId);
+    setPendingTaskKey(taskKey(task));
     const response = await fetch(`/api/admin/tasks/${encodeURIComponent(task.taskId)}`, {
-      method: "DELETE"
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rowNumber: task.rowNumber })
     });
     if (!response.ok) {
-      setPendingTaskId(null);
+      setPendingTaskKey(null);
       alert("Task delete failed.");
       return;
     }
@@ -233,7 +246,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
     if (!archiveCount) return;
     const response = await fetch("/api/admin/archive", { method: "POST" });
     if (!response.ok) {
-      setPendingTaskId(null);
+      setPendingTaskKey(null);
       alert("Archive Done could not complete. The tasks were not removed, so nothing was lost.");
       return;
     }
@@ -241,15 +254,15 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
   }
 
   function toggleEdit(task: Task) {
-    if (editingTaskId === task.taskId) {
-      setEditingTaskId(null);
+    if (editingTaskKey === taskKey(task)) {
+      setEditingTaskKey(null);
       return;
     }
 
-    setEditingTaskId(task.taskId);
+    setEditingTaskKey(taskKey(task));
     setEditDrafts((drafts) => ({
       ...drafts,
-      [task.taskId]: {
+      [taskKey(task)]: {
         task: task.task,
         owner: task.owner,
         area: task.area,
@@ -286,7 +299,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
           <img className="brand-logo" src="/aldea-logo.png" alt="ALDEA" />
           <h1>Task Manager | {user.owner}</h1>
           <p className="muted">
-            {user.role === "admin" ? "Admin Access" : "Personal View"}
+            {user.role === "admin" ? "Admin Access" : "Shared View"}
           </p>
         </div>
         <div className="topbar-actions">
@@ -306,17 +319,30 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
         </div>
       </header>
 
-      {user.role === "admin" ? (
-        <section className="admin-filter-band" aria-label="Admin task filter">
-          <label className="field owner-filter-field">
-            <span>View Tasks For</span>
-            <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
-              <option value="ALL">All</option>
-              {owners.map((owner) => <option key={owner}>{owner}</option>)}
-            </select>
-          </label>
-        </section>
+      {user.role === "admin" && duplicateTaskIds.length ? (
+        <div className="duplicate-warning" role="alert">
+          Duplicate Task IDs hidden from the feed: {duplicateTaskIds.join(", ")}
+        </div>
       ) : null}
+
+      <section className="admin-filter-band" aria-label="Task filters">
+        <label className="field task-search-field">
+          <span>Search Tasks</span>
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="What task are you trying to find?"
+          />
+        </label>
+        <label className="field owner-filter-field">
+          <span>View Tasks For</span>
+          <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+            <option value="ALL">All</option>
+            {owners.map((owner) => <option key={owner}>{owner}</option>)}
+          </select>
+        </label>
+      </section>
 
       <nav className="counter-bar" aria-label="Task sections">
         <div className="pending-box">
@@ -366,7 +392,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
             <span>Area</span>
             <select value={draft.area} onChange={(event) => setDraft({ ...draft, area: event.target.value })} required>
               <option value="">Area</option>
-              {SETUP.areas.map((area) => <option key={area}>{area}</option>)}
+              {areaOptions.map((area) => <option key={area}>{area}</option>)}
             </select>
           </label>
           <label className="field">
@@ -417,13 +443,14 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                   const canEdit =
                     user.role === "admin" ||
                     normalize(task.owner) === normalize(user.owner);
-                  const isEditing = canEdit && editingTaskId === task.taskId;
+                  const isEditing = canEdit && editingTaskKey === taskKey(task);
                   const priorityValue = isEditing ? editValue(task, "priority") : task.priority;
                   const statusValue = isEditing ? editValue(task, "status") : task.status;
                   const blockerValue = isEditing ? editValue(task, "blocker") : task.blocker;
+                  const actionLocked = !canEdit || pendingTaskKey === taskKey(task) || isPending;
 
                   return (
-                  <article className={`task-card ${isEditing ? "is-editing" : ""}`} key={task.taskId}>
+                  <article className={`task-card ${isEditing ? "is-editing" : ""}`} key={taskKey(task)}>
                     <div className="task-main">
                       <div className="task-title-row">
                         <div className="date-priority">
@@ -464,22 +491,20 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                         <h3>{task.task}</h3>
                       )}
                       <div className="task-meta">
-                        {user.role === "admin" ? (
-                          isEditing ? (
-                            <label className="inline-field chip-edit">
-                              <span>Owner</span>
-                              <select value={editValue(task, "owner")} onChange={(event) => setEditValue(task, "owner", event.target.value)}>
-                                {owners.map((owner) => <option key={owner}>{owner}</option>)}
-                              </select>
-                            </label>
-                          ) : <span>{task.owner}</span>
-                        ) : null}
+                        {user.role === "admin" && isEditing ? (
+                          <label className="inline-field chip-edit">
+                            <span>Owner</span>
+                            <select value={editValue(task, "owner")} onChange={(event) => setEditValue(task, "owner", event.target.value)}>
+                              {owners.map((owner) => <option key={owner}>{owner}</option>)}
+                            </select>
+                          </label>
+                        ) : <span>{task.owner}</span>}
                         {isEditing ? (
                           <label className="inline-field chip-edit">
                             <span>Area</span>
                             <select value={editValue(task, "area")} onChange={(event) => setEditValue(task, "area", event.target.value)}>
                               <option value="">Area</option>
-                              {SETUP.areas.map((area) => <option key={area}>{area}</option>)}
+                              {areaOptions.map((area) => <option key={area}>{area}</option>)}
                             </select>
                           </label>
                         ) : <span>{task.area || "No Area"}</span>}
@@ -529,7 +554,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                             className="status-select"
                             value={statusValue}
                             onChange={(event) => setEditValue(task, "status", event.target.value)}
-                            disabled={pendingTaskId === task.taskId || isPending}
+                            disabled={actionLocked}
                           >
                             {SETUP.statuses.filter((status) => status !== "Done").map((status) => <option key={status}>{status}</option>)}
                           </select>
@@ -540,7 +565,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                             className="status-select"
                             defaultValue={task.status}
                             onChange={(event) => updateStatus(task, event.target.value)}
-                            disabled={pendingTaskId === task.taskId || isPending}
+                            disabled={actionLocked}
                           >
                             {SETUP.statuses.filter((status) => status !== "Done").map((status) => <option key={status}>{status}</option>)}
                           </select>
@@ -553,7 +578,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                         className="primary-button compact"
                         type="button"
                         onClick={() => markDone(task)}
-                        disabled={pendingTaskId === task.taskId || isPending}
+                        disabled={actionLocked}
                       >
                           Mark Done
                       </button>
@@ -562,7 +587,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                           className="secondary-action danger"
                           type="button"
                           onClick={() => deleteTask(task)}
-                          disabled={pendingTaskId === task.taskId || isPending}
+                          disabled={actionLocked}
                         >
                           Delete Task
                         </button>
@@ -581,8 +606,9 @@ export default function TaskDashboard({ user, sections, owners, allTasks, signal
                         defaultValue={isEditing ? undefined : task.notes}
                         onChange={isEditing ? (event) => setEditValue(task, "notes", event.target.value) : undefined}
                         onBlur={!isEditing ? (event) => {
-                          if (event.target.value !== task.notes) updateNotes(task, event.target.value);
+                          if (canEdit && event.target.value !== task.notes) updateNotes(task, event.target.value);
                         } : undefined}
+                        readOnly={!isEditing && !canEdit}
                         rows={2}
                       />
                     </label>
@@ -648,6 +674,26 @@ function SignalIcon() {
 
 function SignOutIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9" /></svg>;
+}
+
+function taskKey(task: Task) {
+  return `${task.taskId}-${task.rowNumber}`;
+}
+
+function taskMatchesSearch(task: Task, searchTerm: string) {
+  const query = normalize(searchTerm);
+  if (!query) return true;
+
+  return [
+    task.taskId,
+    task.task,
+    task.owner,
+    task.area,
+    task.notes,
+    task.nextAction,
+    task.blocker,
+    task.link
+  ].some((value) => normalize(value).includes(query));
 }
 
 function titleCase(value: string) {

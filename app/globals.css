@@ -484,18 +484,39 @@ h1 {
 }
 
 .admin-filter-band {
-  align-items: center;
+  align-items: end;
   background: rgba(255, 255, 255, 0.58);
   border: 0.5px solid var(--border);
   border-radius: var(--radius-lg);
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(280px, 1fr) minmax(240px, 360px);
   margin-bottom: 12px;
   padding: 12px 14px;
 }
 
+.duplicate-warning {
+  background: var(--danger-bg);
+  border: 0.5px solid rgba(160, 69, 58, 0.18);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-family: var(--font-accent);
+  font-size: 14px;
+  margin-bottom: 12px;
+  padding: 11px 14px;
+}
+
+.task-search-field input[type="search"] {
+  min-height: 56px;
+}
+
+.owner-filter-field span,
+.task-search-field span {
+  font-size: 13px;
+}
+
 .owner-filter-field {
-  min-width: min(260px, 100%);
+  min-width: 0;
 }
 
 .toggle-heading {
@@ -1170,6 +1191,10 @@ td {
   .admin-controls-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .admin-filter-band {
+    grid-template-columns: 1fr;
   }
 
   .counter-bar {
