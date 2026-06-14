@@ -9,6 +9,10 @@ export type AldeaUser = {
   apps: string[];
 };
 
+function normalizePersonName(value: string) {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
 function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -48,6 +52,10 @@ export function syncSecretToken() {
   return requiredEnv("SYNC_SECRET_TOKEN");
 }
 
+export function signalTaskSyncSecret() {
+  return process.env.SIGNAL_TASK_SYNC_SECRET || syncSecretToken();
+}
+
 export function notionConfig() {
   const configuredTrailId = requiredEnv("NOTION_TRAILS_DATABASE_ID");
   const normalizedTrailId = configuredTrailId === "73904db2-fcb5-4a6a-b4d5-f6dc219b4409"
@@ -78,4 +86,13 @@ export function approvedUsers(): AldeaUser[] {
 
 export function findApprovedUser(email: string) {
   return approvedUsers().find((user) => user.email === email.toLowerCase().trim()) || null;
+}
+
+export function findApprovedUserByOwnerName(name: string) {
+  const normalized = normalizePersonName(name);
+  return approvedUsers().find((user) => (
+    normalizePersonName(user.owner) === normalized ||
+    normalizePersonName(user.signalOwner || "") === normalized ||
+    normalizePersonName(user.name) === normalized
+  )) || null;
 }

@@ -29,6 +29,7 @@ Each task appears in only one section, following that priority order.
 - Task editing and reassignment
 - Task deletion from edit mode
 - Admin archive of Done tasks
+- Signal next-action to task sync endpoint
 
 Daily email reminders are handled in the Task Master Google Sheet with a bound Apps Script.
 
@@ -147,6 +148,36 @@ Environment Variables. Each user needs:
 
 If `SIGNAL_APP_URL` is set, users with `signal` in their apps can open Signal from
 the shell. If it is blank, Signal appears as Coming Soon.
+
+## Signal To Task Sync
+
+Task Manager now exposes a secure sync endpoint for Signal.
+
+When the Signal backend posts:
+
+- `leadName`
+- `whatHappened`
+- `nextAction`
+- `nextActionDate`
+- `nextActionOwner`
+- `submitter`
+
+Task Manager creates a task with:
+
+- `task`: Signal `nextAction`
+- `owner`: mapped from Signal owner name to Task Manager owner name
+- `area`: `Sales`
+- `priority`: `High`
+- `status`: `To Do`
+- `dueDate`: Signal `nextActionDate`
+- `nextAction`: blank
+- `notes`: lead name and latest signal context
+
+Environment:
+
+- `SIGNAL_TASK_SYNC_SECRET`: bearer token expected by `/api/sync/signal-task`
+
+If `SIGNAL_TASK_SYNC_SECRET` is blank, the endpoint falls back to `SYNC_SECRET_TOKEN`.
 
 ## Due Date Email Reminders
 
