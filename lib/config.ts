@@ -13,6 +13,10 @@ function normalizePersonName(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 }
 
+function firstNameToken(value: string) {
+  return normalizePersonName(value).split(/\s+/)[0] || "";
+}
+
 function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -27,6 +31,10 @@ export function appUrl() {
 
 export function spreadsheetId() {
   return process.env.TASK_MASTER_SPREADSHEET_ID || "1If7kubSY1j2eYxnQtpYwyo2YOpw-RPlT7aO_3EQubxk";
+}
+
+export function rolodexSpreadsheetId() {
+  return process.env.ROLEDEX_SPREADSHEET_ID || "1rG6u4wv1J1R3kyx0-sXgpPV6H1gQWjgDeSKldDP37jQ";
 }
 
 export function authSecret() {
@@ -90,9 +98,13 @@ export function findApprovedUser(email: string) {
 
 export function findApprovedUserByOwnerName(name: string) {
   const normalized = normalizePersonName(name);
+  const firstToken = firstNameToken(name);
   return approvedUsers().find((user) => (
     normalizePersonName(user.owner) === normalized ||
     normalizePersonName(user.signalOwner || "") === normalized ||
-    normalizePersonName(user.name) === normalized
+    normalizePersonName(user.name) === normalized ||
+    firstNameToken(user.owner) === firstToken ||
+    firstNameToken(user.signalOwner || "") === firstToken ||
+    firstNameToken(user.name) === firstToken
   )) || null;
 }
