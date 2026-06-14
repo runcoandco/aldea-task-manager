@@ -49,9 +49,14 @@ export function syncSecretToken() {
 }
 
 export function notionConfig() {
+  const configuredTrailId = requiredEnv("NOTION_TRAILS_DATABASE_ID");
+  const normalizedTrailId = configuredTrailId === "73904db2-fcb5-4a6a-b4d5-f6dc219b4409"
+    ? "12fc622a-82fb-8052-85d9-f4e48a5adb6d"
+    : configuredTrailId;
+
   return {
     token: requiredEnv("NOTION_API_TOKEN"),
-    trailsDatabaseId: requiredEnv("NOTION_TRAILS_DATABASE_ID"),
+    trailsDatabaseId: normalizedTrailId,
     syncOwnerName: requiredEnv("ALDEA_SYNC_OWNER_NAME"),
     portfolioDatabaseId: process.env.NOTION_PORTFOLIO_DATABASE_ID || "2f0c622a-82fb-801c-8ee6-e9ccd66ef85f",
     stretchDatabaseId: process.env.NOTION_STRETCH_DATABASE_ID || "15c7f164-ae67-4bdd-9476-cc70ce53bf68"
