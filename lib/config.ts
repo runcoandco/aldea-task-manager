@@ -44,6 +44,20 @@ export function googleServiceAccountConfig() {
   };
 }
 
+export function syncSecretToken() {
+  return requiredEnv("SYNC_SECRET_TOKEN");
+}
+
+export function notionConfig() {
+  return {
+    token: requiredEnv("NOTION_API_TOKEN"),
+    trailsDatabaseId: requiredEnv("NOTION_TRAILS_DATABASE_ID"),
+    syncOwnerName: requiredEnv("ALDEA_SYNC_OWNER_NAME"),
+    portfolioDatabaseId: process.env.NOTION_PORTFOLIO_DATABASE_ID || "2f0c622a-82fb-801c-8ee6-e9ccd66ef85f",
+    stretchDatabaseId: process.env.NOTION_STRETCH_DATABASE_ID || "15c7f164-ae67-4bdd-9476-cc70ce53bf68"
+  };
+}
+
 export function approvedUsers(): AldeaUser[] {
   const raw = process.env.ALDEA_USERS_JSON;
   if (!raw) return [];
