@@ -61,8 +61,16 @@ function AppShell({
       description: "Log lead signals and next steps from active sales opportunities.",
       href: "/api/signal/launch",
       enabled: true
+    },
+    {
+      id: "rolodex",
+      eyebrow: "Network",
+      title: "ALDEA Rolodex",
+      description: "Search, review, and update ALDEA contacts from the shared Rolodex.",
+      href: "/rolodex",
+      enabled: true
     }
-  ].filter((app) => user.apps.includes(app.id));
+  ].filter((app) => app.id === "rolodex" || user.apps.includes(app.id));
 
   return (
     <main className="shell-screen">

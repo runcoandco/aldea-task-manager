@@ -1098,6 +1098,261 @@ textarea:focus {
   text-align: center;
 }
 
+.rolodex-shell .topbar h1 {
+  margin-bottom: 4px;
+}
+
+.rolodex-actions .icon-link {
+  color: #81856a;
+}
+
+.rolodex-actions .icon-link:hover {
+  border-color: rgba(129, 133, 106, 0.32);
+  color: #6b7457;
+}
+
+.rolodex-search-band,
+.rolodex-list-card,
+.rolodex-detail-card {
+  background: rgba(255, 255, 255, 0.58);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.rolodex-search-band {
+  margin-bottom: 14px;
+  padding: 14px;
+}
+
+.rolodex-search-field input[type="search"] {
+  min-height: 56px;
+}
+
+.rolodex-layout {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+}
+
+.rolodex-list-card,
+.rolodex-detail-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rolodex-list-card {
+  padding: 16px 14px;
+}
+
+.rolodex-list-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.rolodex-list-header h2,
+.rolodex-detail-card h2 {
+  color: var(--text);
+  margin: 0;
+}
+
+.rolodex-list-header h2 {
+  font-size: 24px;
+}
+
+.rolodex-list-header strong {
+  background: var(--sage-light);
+  border-radius: 999px;
+  color: #6b7457;
+  font-family: var(--font-accent);
+  font-size: 14px;
+  line-height: 1;
+  min-width: 34px;
+  padding: 7px 9px 6px;
+  text-align: center;
+}
+
+.rolodex-list {
+  display: grid;
+  gap: 8px;
+  max-height: 690px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.rolodex-list-item {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.rolodex-list-item:hover {
+  border-color: rgba(129, 133, 106, 0.28);
+  transform: translateY(-1px);
+}
+
+.rolodex-list-item.is-active {
+  background: rgba(234, 235, 226, 0.72);
+  border-color: rgba(129, 133, 106, 0.34);
+  box-shadow: 0 12px 30px rgba(129, 133, 106, 0.09);
+}
+
+.rolodex-list-item strong {
+  color: var(--text);
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.rolodex-list-item span,
+.rolodex-empty {
+  color: var(--text-mid);
+}
+
+.rolodex-empty {
+  background: rgba(255, 255, 255, 0.68);
+  border: 0.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  padding: 18px;
+  text-align: center;
+}
+
+.rolodex-detail-card {
+  padding: 20px;
+}
+
+.rolodex-detail-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.rolodex-detail-kicker {
+  color: #81856a;
+  font-family: var(--font-accent);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.rolodex-detail-card h2 {
+  font-size: clamp(34px, 4vw, 50px);
+  line-height: 1.02;
+}
+
+.rolodex-detail-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.rolodex-edit-button,
+.rolodex-cancel-button,
+.rolodex-save-button {
+  color: #6b7457;
+}
+
+.rolodex-save-button {
+  background: rgba(165, 167, 141, 0.16);
+  border-color: rgba(129, 133, 106, 0.32);
+}
+
+.rolodex-save-button:hover {
+  background: rgba(165, 167, 141, 0.24);
+}
+
+.rolodex-detail-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.rolodex-detail-pills span,
+.rolodex-value.is-chip {
+  background: var(--sage-light);
+  border-radius: 999px;
+  color: #6b7457;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 7px 12px 6px;
+}
+
+.rolodex-detail-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rolodex-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.rolodex-field span {
+  color: #81856a;
+  font-family: var(--font-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rolodex-field-full {
+  grid-column: 1 / -1;
+}
+
+.rolodex-value {
+  align-items: center;
+  background: var(--surface);
+  border: 0.5px solid rgba(165, 167, 141, 0.26);
+  border-radius: var(--radius);
+  color: var(--text);
+  display: flex;
+  min-height: 44px;
+  padding: 11px 12px;
+}
+
+.rolodex-value.is-link {
+  color: #6b7457;
+  text-decoration: none;
+}
+
+.rolodex-value.is-link:hover {
+  text-decoration: underline;
+}
+
+.rolodex-detail-card input:focus,
+.rolodex-detail-card select:focus,
+.rolodex-detail-card textarea:focus {
+  border-color: #81856a;
+}
+
+.rolodex-empty-detail {
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+}
+
+.rolodex-error {
+  margin-top: 14px;
+}
+
 .all-tasks {
   margin-top: 28px;
 }
@@ -1208,6 +1463,23 @@ td {
   .create-task,
   .task-card {
     grid-template-columns: 1fr;
+  }
+
+  .rolodex-layout,
+  .rolodex-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rolodex-list {
+    max-height: 340px;
+  }
+
+  .rolodex-detail-head {
+    flex-direction: column;
+  }
+
+  .rolodex-detail-actions {
+    justify-content: flex-start;
   }
 
   .inline-edit-grid {

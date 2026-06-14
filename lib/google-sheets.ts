@@ -69,9 +69,9 @@ async function getAccessToken() {
   return cachedToken.accessToken;
 }
 
-async function sheetsFetch(path: string, init?: RequestInit) {
+async function sheetsFetch(path: string, init?: RequestInit, targetSpreadsheetId = spreadsheetId()) {
   const token = await getAccessToken();
-  const response = await fetch(`${SHEETS_BASE_URL}/${spreadsheetId()}${path}`, {
+  const response = await fetch(`${SHEETS_BASE_URL}/${targetSpreadsheetId}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -89,23 +89,48 @@ async function sheetsFetch(path: string, init?: RequestInit) {
   return response;
 }
 
+export async function getSheetValues(range: string, targetSpreadsheetId = spreadsheetId()) {
+  const response = await sheetsFetch(
+    `${valuesPath(range)}?valueRenderOption=UNFORMATTED_VALUE`,
+    undefined,
+    targetSpreadsheetId
+  );
+  const data = await response.json() as { values?: unknown[][] };
+  return data.values || [];
+}
+
+export async function batchUpdateSheetValues(
+  data: { range: string; values: (string | number)[][] }[],
+  targetSpreadsheetId = spreadsheetId()
+) {
+  if (!data.length) return;
+
+  await sheetsFetch("/values:batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({
+      valueInputOption: "RAW",
+      data
+    })
+  }, targetSpreadsheetId);
+}
+
+export async function getSheetsMetadata(targetSpreadsheetId = spreadsheetId()) {
+  const response = await sheetsFetch("?fields=sheets(properties(sheetId,title))", undefined, targetSpreadsheetId);
+  return response.json() as Promise<{ sheets: { properties: { sheetId: number; title: string } }[] }>;
+}
+
 function valuesPath(range: string, suffix = "") {
   return `/values/${encodeURIComponent(range)}${suffix}`;
 }
 
 export async function getTaskRows(): Promise<Task[]> {
-  const response = await sheetsFetch(`${valuesPath("2_TASKS!A2:M1000")}?valueRenderOption=UNFORMATTED_VALUE`);
-  const data = await response.json() as { values?: unknown[][] };
-
-  return (data.values || [])
+  return (await getSheetValues("2_TASKS!A2:M1000"))
     .map((row, index) => rowToTask(row, index + 2))
     .filter((task) => task.taskId || task.task);
 }
 
 export async function getSetupOwners() {
-  const response = await sheetsFetch(`${valuesPath("0_SETUP!A2:A200")}?valueRenderOption=UNFORMATTED_VALUE`);
-  const data = await response.json() as { values?: unknown[][] };
-  return (data.values || [])
+  return (await getSheetValues("0_SETUP!A2:A200"))
     .map((row) => String(row[0] || "").trim())
     .filter(Boolean)
     .filter((owner) => owner !== "ALL");
@@ -126,13 +151,7 @@ export async function updateTaskCells(rowNumber: number, updates: Partial<Record
 
   if (!data.length) return;
 
-  await sheetsFetch("/values:batchUpdate", {
-    method: "POST",
-    body: JSON.stringify({
-      valueInputOption: "RAW",
-      data
-    })
-  });
+  await batchUpdateSheetValues(data);
 }
 
 export async function appendTask(input: {
@@ -211,7 +230,7 @@ export async function archiveDoneTasks() {
 }
 
 export async function deleteTaskRow(rowNumber: number) {
-  const metadata = await getSpreadsheetMetadata();
+  const metadata = await getSheetsMetadata();
   const taskSheetId = metadata.sheets.find((sheet) => sheet.properties.title === "2_TASKS")?.properties.sheetId;
   if (typeof taskSheetId !== "number") {
     throw new Error("Could not find 2_TASKS sheet ID");
@@ -249,7 +268,7 @@ async function batchDeleteRows(rowNumbers: number[]) {
     }
   }));
 
-  const metadata = await getSpreadsheetMetadata();
+  const metadata = await getSheetsMetadata();
   const taskSheetId = metadata.sheets.find((sheet) => sheet.properties.title === "2_TASKS")?.properties.sheetId;
   if (typeof taskSheetId !== "number") {
     throw new Error("Could not find 2_TASKS sheet ID");
@@ -263,11 +282,6 @@ async function batchDeleteRows(rowNumbers: number[]) {
     method: "POST",
     body: JSON.stringify({ requests })
   });
-}
-
-async function getSpreadsheetMetadata() {
-  const response = await sheetsFetch("?fields=sheets(properties(sheetId,title))");
-  return response.json() as Promise<{ sheets: { properties: { sheetId: number; title: string } }[] }>;
 }
 
 function rowToTask(row: unknown[], rowNumber: number): Task {
