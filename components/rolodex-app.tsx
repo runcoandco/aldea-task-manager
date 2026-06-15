@@ -8,6 +8,7 @@ type Props = {
   user: AldeaUser;
   contacts: RolodexContact[];
   primaryContacts: string[];
+  loadError?: string;
 };
 
 const emptyDraft: RolodexDraft = {
@@ -22,7 +23,7 @@ const emptyDraft: RolodexDraft = {
   internalPrimaryContact: ""
 };
 
-export default function RolodexApp({ user, contacts, primaryContacts }: Props) {
+export default function RolodexApp({ user, contacts, primaryContacts, loadError = "" }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedContactId, setSelectedContactId] = useState(contacts[0]?.contactId || "");
   const [editingContactId, setEditingContactId] = useState("");
@@ -153,6 +154,12 @@ export default function RolodexApp({ user, contacts, primaryContacts }: Props) {
           </form>
         </div>
       </header>
+
+      {loadError ? (
+        <div className="duplicate-warning" role="alert">
+          {loadError}
+        </div>
+      ) : null}
 
       <section className="rolodex-search-band">
         <label className="field rolodex-search-field">
