@@ -142,6 +142,11 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
           <a className="icon-link" href="/" aria-label="Workspace Home" title="Workspace Home">
             <AppGridIcon />
           </a>
+          {user.apps.includes("signal") ? (
+            <a className="icon-link" href="/api/signal/launch" aria-label="Open Signal" title="Open Signal">
+              <SignalIcon />
+            </a>
+          ) : null}
           {user.apps.includes("task-manager") ? (
             <a className="icon-link" href="/task-manager" aria-label="Open Task Manager" title="Open Task Manager">
               <TaskListIcon />
@@ -366,6 +371,15 @@ function TaskListIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M9 6h11M9 12h11M9 18h11" />
       <path d="m4 6 1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
+    </svg>
+  );
+}
+
+function SignalIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 17.5 3.5 21l3.8-1.2A9 9 0 1 0 5 17.5Z" />
+      <path d="M8 12h8M8 8.5h5M8 15.5h6" />
     </svg>
   );
 }

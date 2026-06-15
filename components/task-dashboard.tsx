@@ -306,6 +306,9 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
           <a className="icon-link" href="/" aria-label="Workspace Home" title="Workspace Home">
             <AppGridIcon />
           </a>
+          <a className="icon-link" href="/rolodex" aria-label="Open Rolodex" title="Open Rolodex">
+            <RolodexIcon />
+          </a>
           {user.apps.includes("signal") ? (
             <a className="icon-link" href={signalUrl} aria-label="Open Signal" title="Open Signal">
               <SignalIcon />
@@ -670,6 +673,10 @@ function AppGridIcon() {
 
 function SignalIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 17.5 3.5 21l3.8-1.2A9 9 0 1 0 5 17.5Z" /><path d="M8 12h8M8 8.5h5M8 15.5h6" /></svg>;
+}
+
+function RolodexIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 4.5h9a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H7Z" /><path d="M7 8h11M7 12h11M7 16h11" /><path d="M7 4.5H5.5a1.5 1.5 0 0 0 0 3H7M7 10.5H5.5a1.5 1.5 0 0 0 0 3H7M7 16.5H5.5a1.5 1.5 0 0 0 0 3H7" /></svg>;
 }
 
 function SignOutIcon() {
