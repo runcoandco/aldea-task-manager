@@ -18,7 +18,9 @@ export default async function RolodexPage() {
     contacts = await getRolodexContacts();
   } catch (error) {
     console.error("Rolodex load failed", error);
-    loadError = "Rolodex could not load the Google Sheet. Check the sheet ID, tab name, and service account access.";
+    const serviceEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "the configured Google service account";
+    const reason = error instanceof Error ? error.message : "Unknown error";
+    loadError = `Rolodex could not load the Google Sheet. Share it with ${serviceEmail}. Runtime error: ${reason}`;
   }
 
   return (
