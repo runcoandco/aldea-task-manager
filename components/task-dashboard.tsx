@@ -66,6 +66,9 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
   const displayedTasks = searchTerm
     ? ownerFilteredTasks.filter((task) => taskMatchesSearch(task, searchTerm))
     : ownerFilteredTasks;
+  const adminDisplayedTasks = [...displayedTasks].sort((a, b) => (
+    b.rowNumber - a.rowNumber || b.taskId.localeCompare(a.taskId)
+  ));
   const displayedSections = buildSections(displayedTasks);
   const totalOpen = displayedSections.reduce((sum, section) => sum + section.tasks.length, 0);
   const archiveCount = allTasks.filter((task) => normalize(task.status) === "done").length;
@@ -632,7 +635,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
             <span className={`toggle-caret ${adminListOpen ? "is-open" : ""}`} aria-hidden="true" />
             <span className="section-title-group">
               <h2>Admin Task List</h2>
-              <strong>{displayedTasks.length}</strong>
+              <strong>{adminDisplayedTasks.length}</strong>
             </span>
           </button>
           {adminListOpen ? <div className="table-wrap">
@@ -648,7 +651,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
                 </tr>
               </thead>
               <tbody>
-                {displayedTasks.map((task) => (
+                {adminDisplayedTasks.map((task) => (
                   <tr key={`${task.taskId}-${task.rowNumber}`}>
                     <td>{task.taskId}</td>
                     <td>{task.task}</td>
