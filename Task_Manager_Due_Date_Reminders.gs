@@ -1,20 +1,13 @@
-// ============================================================
-// ALDEA Task Manager - Due Date Email Reminders
-// ============================================================
-// Paste this file into Extensions > Apps Script in the Task Master
-// Google Sheet, then run installTaskReminderTrigger() once.
-//
-// Setup expectations:
-// - 2_TASKS contains the task table
-// - 0_SETUP has Owner in column A and Email in column B
-// - The script runs as the sheet owner
-//
-// Reminder rules:
-// - Send one email on the due date morning when Status != Done
-// - Send one extra email 7 days later when Status != Done
-// - Poll for new assignments and reassignment emails every 15 minutes
-// - Do not send duplicates for the same task/reminder type/date
-// ============================================================
+/**
+ * ALDEA Task Manager due date reminders.
+ * Version: v2026.06.17-02
+ * Last Updated: 2026-06-17 12:30 Europe/Lisbon
+ *
+ * What this script does:
+ * 1. Sends due-date reminder emails.
+ * 2. Sends assignment and reassignment emails.
+ * 3. Installs the reminder and assignment triggers.
+ */
 
 var CONFIG = {
   TASK_SHEET: '2_TASKS',
@@ -27,12 +20,13 @@ var CONFIG = {
   APP_URL: 'https://aldea-task-manager.vercel.app/task-manager',
   NOTIFICATION_FROM: '',
   NOTIFICATION_FROM_NAME: 'ALDEA Task Manager',
+  ENABLE_DUE_REMINDERS: false,
   DUE_REMINDER_DAYS: 0,
   FOLLOW_UP_DAYS: 7,
   ASSIGNMENT_POLL_MINUTES: 15
 };
 
-function onOpen() {
+function addReminderMenu_() {
   SpreadsheetApp.getUi()
     .createMenu('ALDEA Reminders')
     .addItem('Install notification triggers', 'installTaskReminderTrigger')
@@ -44,12 +38,14 @@ function onOpen() {
 function installTaskReminderTrigger() {
   removeTaskReminderTriggers_();
 
-  ScriptApp.newTrigger('runTaskDueReminders')
-    .timeBased()
-    .everyDays(1)
-    .atHour(7)
-    .nearMinute(0)
-    .create();
+  if (CONFIG.ENABLE_DUE_REMINDERS) {
+    ScriptApp.newTrigger('runTaskDueReminders')
+      .timeBased()
+      .everyDays(1)
+      .atHour(7)
+      .nearMinute(0)
+      .create();
+  }
 
   ScriptApp.newTrigger('runTaskAssignmentNotifications')
     .timeBased()
@@ -68,6 +64,10 @@ function removeTaskReminderTriggers_() {
 }
 
 function runTaskDueReminders() {
+  if (!CONFIG.ENABLE_DUE_REMINDERS) {
+    return { success: true, sent: 0, paused: true };
+  }
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var taskSheet = ss.getSheetByName(CONFIG.TASK_SHEET);
   if (!taskSheet) {
@@ -315,7 +315,7 @@ function buildReminderSubject_(task, reminderType) {
 function buildAssignmentSubject_(task, dueDate, timezone) {
   var assigner = task.assignedBy || 'ALDEA';
   var dueText = dueDate ? formatTaskDate_(dueDate, timezone) : 'No due date';
-  return assigner + ' assigned you this task due on ' + dueText + ': ' + task.taskId + ' - ' + task.task;
+  return assigner + ' assigned you ' + task.taskId + ' - due ' + dueText;
 }
 
 function buildReminderPlainBody_(ss, task, reminderType, dueDate, timezone, daysFromDue) {

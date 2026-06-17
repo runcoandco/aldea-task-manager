@@ -1,3 +1,14 @@
+/**
+ * ALDEA Trails sync trigger.
+ * Version: v2026.06.17-01
+ * Last Updated: 2026-06-17 12:00 Europe/Lisbon
+ *
+ * What this script does:
+ * 1. Calls the Vercel sync endpoint.
+ * 2. Installs the 15-minute sync trigger.
+ * 3. Logs sync responses in the workbook.
+ */
+
 const ALDEA_TRAILS_SYNC_URL = 'https://YOUR_DOMAIN/api/sync/aldea-trails';
 const ALDEA_TRAILS_SYNC_TOKEN = 'REPLACE_WITH_SYNC_SECRET_TOKEN';
 const ALDEA_TRAILS_SYNC_LOG_SHEET = '_SYNC_LOGS';
@@ -24,19 +35,15 @@ function runAldeaTrailsSync() {
 }
 
 function installAldeaTrailsSyncTriggers() {
-  const hours = [6, 12, 18];
   const existing = ScriptApp.getProjectTriggers()
     .filter((trigger) => trigger.getHandlerFunction() === 'runAldeaTrailsSync');
 
   existing.forEach((trigger) => ScriptApp.deleteTrigger(trigger));
 
-  hours.forEach((hour) => {
-    ScriptApp.newTrigger('runAldeaTrailsSync')
-      .timeBased()
-      .atHour(hour)
-      .everyDays(1)
-      .create();
-  });
+  ScriptApp.newTrigger('runAldeaTrailsSync')
+    .timeBased()
+    .everyMinutes(15)
+    .create();
 }
 
 function logAldeaTrailsSyncResult(status, body) {
