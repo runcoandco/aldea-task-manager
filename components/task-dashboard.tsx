@@ -54,6 +54,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
   const [searchTerm, setSearchTerm] = useState("");
   const [toast, setToast] = useState("");
   const [createError, setCreateError] = useState("");
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [isPending, startTransition] = useTransition();
   const areaOptions = visibleAreas(user.role);
   const [draft, setDraft] = useState<DraftTask>({
@@ -202,27 +203,34 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
 
   async function createTask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isCreatingTask) return;
+
     setCreateError("");
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
 
-    const response = await fetch("/api/admin/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...draft
-      })
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      setCreateError(body?.error || "Please add a task, owner, area, and due date.");
-      return;
+    setIsCreatingTask(true);
+    try {
+      const response = await fetch("/api/admin/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...draft
+        })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setCreateError(body?.error || "Please add a task, owner, area, and due date.");
+        return;
+      }
+      setDraft({
+        ...initialDraft,
+        owner: user.owner
+      });
+      refresh("Task created.");
+    } finally {
+      setIsCreatingTask(false);
     }
-    setDraft({
-      ...initialDraft,
-      owner: user.owner
-    });
-    refresh("Task created.");
   }
 
   async function deleteTask(task: Task) {
@@ -424,7 +432,9 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
               placeholder="Next Action"
             />
           </label>
-          <button className="primary-button" type="submit">Create</button>
+          <button className="primary-button" type="submit" disabled={isCreatingTask || isPending}>
+            {isCreatingTask ? "Creating..." : "Create"}
+          </button>
           {createError ? <p className="create-task-error" role="alert">{createError}</p> : null}
         </form>
       </section>

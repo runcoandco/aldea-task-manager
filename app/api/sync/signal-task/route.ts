@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { findApprovedUserByOwnerName, signalTaskSyncSecret } from "@/lib/config";
-import { appendTask, getSetupOwners, getTaskRows } from "@/lib/google-sheets";
+import { appendTask, deleteTaskRow, getSetupOwners, getTaskRows } from "@/lib/google-sheets";
 
 type SignalTaskPayload = {
   leadName?: string;
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    await appendTask({
+    const createdTask = await appendTask({
       task: `${payload.leadName} - ${payload.nextAction}`,
       owner: taskOwner,
       area: "Sales",
@@ -112,12 +112,25 @@ export async function POST(request: NextRequest) {
       assignedBy: taskAssigner
     });
 
-    const createdTask = (await getTaskRows()).find((task) => task.createdBy === taskKey);
+    const matchingTasks = (await getTaskRows())
+      .filter((task) => task.createdBy === taskKey)
+      .sort((a, b) => a.rowNumber - b.rowNumber);
+    const canonicalTask = matchingTasks[0];
+
+    if (matchingTasks.length > 1 && canonicalTask && canonicalTask.rowNumber !== createdTask.rowNumber) {
+      await deleteTaskRow(createdTask.rowNumber);
+
+      return NextResponse.json({
+        success: true,
+        created: false,
+        taskId: canonicalTask.taskId
+      });
+    }
 
     return NextResponse.json({
       success: true,
       created: true,
-      taskId: createdTask?.taskId || null
+      taskId: canonicalTask?.taskId || createdTask.taskId
     });
   } catch (error) {
     console.error("Signal task sync failed", error);

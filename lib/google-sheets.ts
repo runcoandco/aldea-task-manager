@@ -154,6 +154,46 @@ export async function updateTaskCells(rowNumber: number, updates: Partial<Record
   await batchUpdateSheetValues(data);
 }
 
+function parseTaskNumber(taskId: string) {
+  const match = taskId.match(/TASK-(\d+)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function inferTaskIdOffset(tasks: Task[]) {
+  const counts = new Map<number, number>();
+
+  tasks.forEach((task) => {
+    const taskNumber = parseTaskNumber(task.taskId);
+    if (taskNumber === null) return;
+    const offset = taskNumber - task.rowNumber;
+    counts.set(offset, (counts.get(offset) || 0) + 1);
+  });
+
+  let selectedOffset = -1;
+  let selectedCount = -1;
+  for (const [offset, count] of counts.entries()) {
+    if (count > selectedCount) {
+      selectedOffset = offset;
+      selectedCount = count;
+    }
+  }
+
+  return selectedOffset;
+}
+
+function buildTaskId(rowNumber: number, offset: number) {
+  return `TASK-${String(rowNumber + offset).padStart(4, "0")}`;
+}
+
+function extractRowNumberFromUpdatedRange(updatedRange: string) {
+  const match = updatedRange.match(/![A-Z]+\s*(\d+):[A-Z]+\s*(\d+)$/i) || updatedRange.match(/![A-Z]+(\d+):[A-Z]+(\d+)$/i);
+  if (!match) {
+    throw new Error(`Could not parse appended row from range: ${updatedRange}`);
+  }
+
+  return Number(match[1]);
+}
+
 export async function appendTask(input: {
   task: string;
   owner: string;
@@ -169,17 +209,13 @@ export async function appendTask(input: {
   assignedBy: string;
 }) {
   const tasks = await getTaskRows();
-  const nextNumber = tasks.reduce((max, task) => {
-    const match = task.taskId.match(/TASK-(\d+)/);
-    return Math.max(max, match ? Number(match[1]) : 0);
-  }, 0) + 1;
-  const taskId = `TASK-${String(nextNumber).padStart(4, "0")}`;
+  const taskIdOffset = inferTaskIdOffset(tasks);
 
-  await sheetsFetch(`${valuesPath("2_TASKS!A:M", ":append")}?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+  const response = await sheetsFetch(`${valuesPath("2_TASKS!A:M", ":append")}?valueInputOption=RAW&insertDataOption=INSERT_ROWS&includeValuesInResponse=false`, {
     method: "POST",
     body: JSON.stringify({
       values: [[
-        taskId,
+        "",
         input.task,
         input.owner,
         input.area,
@@ -195,6 +231,19 @@ export async function appendTask(input: {
       ]]
     })
   });
+
+  const data = await response.json() as { updates?: { updatedRange?: string } };
+  const updatedRange = data.updates?.updatedRange;
+  if (!updatedRange) {
+    throw new Error("Google Sheets append did not return an updated range");
+  }
+
+  const rowNumber = extractRowNumberFromUpdatedRange(updatedRange);
+  const taskId = buildTaskId(rowNumber, taskIdOffset);
+
+  await updateTaskCells(rowNumber, { taskId });
+
+  return { rowNumber, taskId };
 }
 
 export async function archiveDoneTasks() {
