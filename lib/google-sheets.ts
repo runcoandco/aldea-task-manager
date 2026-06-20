@@ -3,6 +3,7 @@ import { TASK_COLUMNS, sheetDateValue, type Task } from "./tasks";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SHEETS_BASE_URL = "https://sheets.googleapis.com/v4/spreadsheets";
+const MAX_SHEETS_RETRIES = 3;
 
 let cachedToken: { accessToken: string; expiresAt: number } | null = null;
 
@@ -70,23 +71,44 @@ async function getAccessToken() {
 }
 
 async function sheetsFetch(path: string, init?: RequestInit, targetSpreadsheetId = spreadsheetId()) {
-  const token = await getAccessToken();
-  const response = await fetch(`${SHEETS_BASE_URL}/${targetSpreadsheetId}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(init?.headers || {})
-    },
-    cache: "no-store"
-  });
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
+  for (let attempt = 0; attempt <= MAX_SHEETS_RETRIES; attempt++) {
+    const token = await getAccessToken();
+    const response = await fetch(`${SHEETS_BASE_URL}/${targetSpreadsheetId}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        ...(init?.headers || {})
+      },
+      cache: "no-store"
+    });
+
+    if (response.ok) {
+      return response;
+    }
+
     const message = await response.text();
-    throw new Error(`Google Sheets request failed: ${response.status} ${message}`);
+    lastError = new Error(`Google Sheets request failed: ${response.status} ${message}`);
+
+    const shouldRetry = response.status === 401 || response.status === 429 || response.status >= 500;
+    if (!shouldRetry || attempt === MAX_SHEETS_RETRIES) {
+      throw lastError;
+    }
+
+    if (response.status === 401) {
+      cachedToken = null;
+    }
+
+    await sleep(500 * (attempt + 1));
   }
 
-  return response;
+  throw lastError || new Error("Google Sheets request failed");
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function getSheetValues(range: string, targetSpreadsheetId = spreadsheetId()) {
