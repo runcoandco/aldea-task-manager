@@ -181,30 +181,13 @@ function parseTaskNumber(taskId: string) {
   return match ? Number(match[1]) : null;
 }
 
-function inferTaskIdOffset(tasks: Task[]) {
-  const counts = new Map<number, number>();
-
-  tasks.forEach((task) => {
+function nextTaskId(tasks: Task[]) {
+  const nextNumber = tasks.reduce((max, task) => {
     const taskNumber = parseTaskNumber(task.taskId);
-    if (taskNumber === null) return;
-    const offset = taskNumber - task.rowNumber;
-    counts.set(offset, (counts.get(offset) || 0) + 1);
-  });
+    return Math.max(max, taskNumber ?? 0);
+  }, 0) + 1;
 
-  let selectedOffset = -1;
-  let selectedCount = -1;
-  for (const [offset, count] of counts.entries()) {
-    if (count > selectedCount) {
-      selectedOffset = offset;
-      selectedCount = count;
-    }
-  }
-
-  return selectedOffset;
-}
-
-function buildTaskId(rowNumber: number, offset: number) {
-  return `TASK-${String(rowNumber + offset).padStart(4, "0")}`;
+  return `TASK-${String(nextNumber).padStart(4, "0")}`;
 }
 
 function extractRowNumberFromUpdatedRange(updatedRange: string) {
@@ -231,13 +214,13 @@ export async function appendTask(input: {
   assignedBy: string;
 }) {
   const tasks = await getTaskRows();
-  const taskIdOffset = inferTaskIdOffset(tasks);
+  const taskId = nextTaskId(tasks);
 
   const response = await sheetsFetch(`${valuesPath("2_TASKS!A:M", ":append")}?valueInputOption=RAW&insertDataOption=INSERT_ROWS&includeValuesInResponse=false`, {
     method: "POST",
     body: JSON.stringify({
       values: [[
-        "",
+        taskId,
         input.task,
         input.owner,
         input.area,
@@ -261,10 +244,6 @@ export async function appendTask(input: {
   }
 
   const rowNumber = extractRowNumberFromUpdatedRange(updatedRange);
-  const taskId = buildTaskId(rowNumber, taskIdOffset);
-
-  await updateTaskCells(rowNumber, { taskId });
-
   return { rowNumber, taskId };
 }
 
