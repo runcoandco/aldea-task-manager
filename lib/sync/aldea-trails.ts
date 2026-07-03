@@ -146,6 +146,7 @@ function trailProperties(input: {
   title: string;
   dueDate: string | null;
   priority: string | null;
+  difficultyLevel?: string;
   projectId?: string;
   stretchId?: string;
   includeStage?: boolean;
@@ -163,6 +164,7 @@ function trailProperties(input: {
     },
     "Due Date": input.dueDate ? { date: { start: input.dueDate } } : { date: null },
     "Priority Level": input.priority ? { select: { name: input.priority } } : undefined,
+    "Difficulty Level": input.difficultyLevel ? { select: { name: input.difficultyLevel } } : undefined,
     ...(input.includeStage ? { "Action Stage": { status: { name: "Planned" } } } : {}),
     ...(input.projectId ? { Project: { relation: [{ id: input.projectId }] } } : {}),
     ...(input.stretchId ? { Stretch: { relation: [{ id: input.stretchId }] } } : {})
@@ -290,6 +292,7 @@ async function runInboundSync(input: {
     const title = buildTrailTitle(task);
     const dueDate = formatNotionDate(task.dueDate);
     const priority = priorityToNotion(task.priority);
+    const difficultyLevel = "3";
 
     try {
       const matches = await findTrailMatches(task.taskId);
@@ -312,6 +315,7 @@ async function runInboundSync(input: {
             title,
             dueDate,
             priority,
+            difficultyLevel,
             projectId: input.projectId,
             stretchId: input.stretch.id || undefined,
             includeStage: true
@@ -328,6 +332,7 @@ async function runInboundSync(input: {
       const existingTitle = extractTitle(existing, "Task");
       const existingDueDate = extractDate(existing, "Due Date");
       const existingPriority = extractSelect(existing, "Priority Level");
+      const existingDifficultyLevel = extractSelect(existing, "Difficulty Level");
       const projectRelationIds = extractRelationIds(existing, "Project");
       const stretchRelationIds = extractRelationIds(existing, "Stretch");
 
@@ -348,6 +353,10 @@ async function runInboundSync(input: {
 
       if (priority && priority !== existingPriority) {
         updates["Priority Level"] = { select: { name: priority } };
+      }
+
+      if (!existingDifficultyLevel) {
+        updates["Difficulty Level"] = { select: { name: difficultyLevel } };
       }
 
       if (!projectRelationIds.length) {
