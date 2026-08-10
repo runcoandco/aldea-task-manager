@@ -69,6 +69,14 @@ web_modules/
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
+*service_account*.json
+
+# Vercel local project metadata
+.vercel/
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

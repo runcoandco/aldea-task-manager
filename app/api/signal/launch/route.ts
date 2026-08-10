@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { appUrl } from "@/lib/config";
+import { appUrl, signalAppUrl } from "@/lib/config";
 import { currentUser } from "@/lib/session";
+import { createSignalLaunchToken } from "@/lib/signal-launch";
 
 export async function GET() {
   const user = await currentUser();
@@ -9,8 +10,10 @@ export async function GET() {
     return NextResponse.redirect(appUrl());
   }
 
-  const signalUrl = new URL(process.env.SIGNAL_APP_URL || "https://aldea-signal-capture.vercel.app/");
-  signalUrl.searchParams.set("owner", user.signalOwner || user.owner);
-  signalUrl.searchParams.set("role", user.role);
+  const signalUrl = new URL(signalAppUrl());
+  signalUrl.searchParams.set("launch", createSignalLaunchToken({
+    owner: user.signalOwner || user.owner,
+    role: user.role
+  }));
   return NextResponse.redirect(signalUrl);
 }
