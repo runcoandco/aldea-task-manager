@@ -51,7 +51,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
     Object.fromEntries(sections.map((section) => [section.id, section.tasks.length > 0]))
   ));
   const [adminListOpen, setAdminListOpen] = useState(false);
-  const [ownerFilter, setOwnerFilter] = useState("ALL");
+  const [ownerFilter, setOwnerFilter] = useState(user.owner);
   const [searchTerm, setSearchTerm] = useState("");
   const [toast, setToast] = useState("");
   const [createError, setCreateError] = useState("");
@@ -86,7 +86,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
   }, []);
 
   useEffect(() => {
-    const savedFilter = window.sessionStorage.getItem(OWNER_FILTER_STORAGE_KEY);
+    const savedFilter = window.sessionStorage.getItem(`${OWNER_FILTER_STORAGE_KEY}:${user.email.toLowerCase()}`);
     const savedSearch = window.sessionStorage.getItem(TASK_SEARCH_STORAGE_KEY);
     if (savedSearch) {
       setSearchTerm(savedSearch);
@@ -99,12 +99,12 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
       return;
     }
 
-    window.sessionStorage.removeItem(OWNER_FILTER_STORAGE_KEY);
-  }, [owners]);
+    window.sessionStorage.removeItem(`${OWNER_FILTER_STORAGE_KEY}:${user.email.toLowerCase()}`);
+  }, [owners, user.email]);
 
   useEffect(() => {
-    window.sessionStorage.setItem(OWNER_FILTER_STORAGE_KEY, ownerFilter);
-  }, [ownerFilter]);
+    window.sessionStorage.setItem(`${OWNER_FILTER_STORAGE_KEY}:${user.email.toLowerCase()}`, ownerFilter);
+  }, [ownerFilter, user.email]);
 
   useEffect(() => {
     window.sessionStorage.setItem(TASK_SEARCH_STORAGE_KEY, searchTerm);
@@ -114,7 +114,7 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
     if (message) {
       window.sessionStorage.setItem("aldea-toast", message);
     }
-    window.sessionStorage.setItem(OWNER_FILTER_STORAGE_KEY, ownerFilter);
+    window.sessionStorage.setItem(`${OWNER_FILTER_STORAGE_KEY}:${user.email.toLowerCase()}`, ownerFilter);
     window.sessionStorage.setItem(TASK_SEARCH_STORAGE_KEY, searchTerm);
     startTransition(() => {
       window.location.reload();
