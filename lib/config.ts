@@ -98,6 +98,11 @@ export function approvedUsers(): AldeaUser[] {
   ];
 }
 
+export function canUseRolodex(user: AldeaUser) {
+  return user.apps.includes("rolodex") || usersFromEnv("ALDEA_USERS_JSON")
+    .some((approved) => approved.email === user.email);
+}
+
 export function findApprovedUser(email: string) {
   return approvedUsers().find((user) => user.email === email.toLowerCase().trim()) || null;
 }
