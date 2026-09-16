@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import RolodexApp from "@/components/rolodex-app";
+import { canUseRolodex } from "@/lib/config";
 import { currentUser } from "@/lib/session";
 import { getRolodexContacts, rolodexPrimaryContactOptions, type RolodexContact } from "@/lib/rolodex";
 
 export default async function RolodexPage() {
   const user = await currentUser();
 
-  if (!user) {
+  if (!user || !canUseRolodex(user)) {
     redirect("/");
   }
 
