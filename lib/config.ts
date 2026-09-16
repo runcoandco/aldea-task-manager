@@ -78,8 +78,8 @@ export function notionConfig() {
   };
 }
 
-export function approvedUsers(): AldeaUser[] {
-  const raw = process.env.ALDEA_USERS_JSON;
+function usersFromEnv(name: string): AldeaUser[] {
+  const raw = process.env[name];
   if (!raw) return [];
 
   const parsed = JSON.parse(raw) as AldeaUser[];
@@ -89,6 +89,13 @@ export function approvedUsers(): AldeaUser[] {
     role: user.role === "admin" ? "admin" : "user",
     apps: user.apps || []
   }));
+}
+
+export function approvedUsers(): AldeaUser[] {
+  return [
+    ...usersFromEnv("ALDEA_USERS_JSON"),
+    ...usersFromEnv("ALDEA_ADDITIONAL_USERS_JSON")
+  ];
 }
 
 export function findApprovedUser(email: string) {
