@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canUseRolodex } from "@/lib/config";
 import { currentUser } from "@/lib/session";
 import { updateRolodexContact, type RolodexDraft } from "@/lib/rolodex";
 
@@ -9,6 +10,9 @@ export async function PATCH(
   const user = await currentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!canUseRolodex(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { contactId } = await params;

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import TaskDashboard from "@/components/task-dashboard";
+import { canUseRolodex } from "@/lib/config";
 import { getSetupOwners, getTaskRows } from "@/lib/google-sheets";
 import { currentUser } from "@/lib/session";
 import { canSeeTask } from "@/lib/task-access";
@@ -28,6 +29,7 @@ export default async function TaskManagerPage() {
       owners={owners}
       allTasks={uniqueVisibleTasks}
       duplicateTaskIds={duplicateTaskIds}
+      rolodexAllowed={canUseRolodex(user)}
       signalUrl="/api/signal/launch"
     />
   );

@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/session";
+import { canUseRolodex, type AldeaUser } from "@/lib/config";
 
 export default async function Home({
   searchParams
@@ -37,13 +38,9 @@ function LoginScreen({ authError }: { authError?: string }) {
 }
 
 function AppShell({
-  user
-}: {
-  user: {
-    name: string;
-    role: "admin" | "user";
-    apps: string[];
-  };
+  user}: {
+  user: AldeaUser;
+
 }) {
   const availableApps = [
     {
@@ -70,7 +67,7 @@ function AppShell({
       href: "/rolodex",
       enabled: true
     }
-  ].filter((app) => app.id === "rolodex" || user.apps.includes(app.id));
+  ].filter((app) => app.id === "rolodex" ? canUseRolodex(user) : user.apps.includes(app.id));
 
   return (
     <main className="shell-screen">

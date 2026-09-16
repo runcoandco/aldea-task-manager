@@ -10,6 +10,7 @@ type Props = {
   owners: string[];
   allTasks: Task[];
   duplicateTaskIds: string[];
+  rolodexAllowed: boolean;
   signalUrl: string;
 };
 
@@ -42,7 +43,7 @@ const initialDraft: DraftTask = {
 const OWNER_FILTER_STORAGE_KEY = "aldea-owner-filter";
 const TASK_SEARCH_STORAGE_KEY = "aldea-task-search";
 
-export default function TaskDashboard({ user, sections, owners, allTasks, duplicateTaskIds, signalUrl }: Props) {
+export default function TaskDashboard({ user, sections, owners, allTasks, duplicateTaskIds, rolodexAllowed, signalUrl }: Props) {
   const [pendingTaskKey, setPendingTaskKey] = useState<string | null>(null);
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
   const [editDrafts, setEditDrafts] = useState<Record<string, Partial<DraftTask>>>({});
@@ -317,9 +318,12 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
           <a className="icon-link" href="/" aria-label="Workspace Home" title="Workspace Home">
             <AppGridIcon />
           </a>
-          <a className="icon-link" href="/rolodex" aria-label="Open Rolodex" title="Open Rolodex">
-            <RolodexIcon />
-          </a>
+          {rolodexAllowed ? (
+            <a className="icon-link" href="/rolodex" aria-label="Open Rolodex" title="Open Rolodex">
+              <RolodexIcon />
+            </a>
+          ) : null}
+
           {user.apps.includes("signal") ? (
             <a className="icon-link" href={signalUrl} aria-label="Open Signal" title="Open Signal">
               <SignalIcon />
