@@ -27,6 +27,7 @@ type NotionRelationProperty = {
 
 export type NotionPage = {
   id: string;
+  url?: string;
   properties: Record<string, NotionTitleProperty | NotionSelectProperty | NotionDateProperty | NotionRelationProperty | undefined>;
 };
 
