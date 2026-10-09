@@ -1,5 +1,16 @@
+/**
+ * ALDEA Task Manager and Notion Trail sync.
+ * Version: v2026.10.09-01
+ * Last Updated: 2026-10-09 Europe/Lisbon
+ *
+ * What this script does:
+ * 1. Syncs assigned Sheet tasks into Notion.
+ * 2. Creates Sheet tasks from approved Notion templates.
+ * 3. Returns Achieved tasks to Sheets as Done.
+ */
+
 import { notionConfig } from "@/lib/config";
-import { getTaskRows, updateTaskCells } from "@/lib/google-sheets";
+import { appendTask, deleteTaskRow, getTaskRows, updateTaskCells } from "@/lib/google-sheets";
 import {
   createPage,
   extractDate,
@@ -10,7 +21,7 @@ import {
   queryDatabase,
   updatePage
 } from "@/lib/notion";
-import { normalize, parseSheetDate, type Task } from "@/lib/tasks";
+import { normalize, parseSheetDate, SETUP, type Task } from "@/lib/tasks";
 
 type SyncSectionSummary = {
   errors: number;
@@ -31,10 +42,19 @@ type ReturnSummary = SyncSectionSummary & {
   notFoundInSheet: number;
 };
 
+type NotionOriginSummary = SyncSectionSummary & {
+  readyDetected: number;
+  createdInSheets: number;
+  recovered: number;
+  validationErrors: number;
+  duplicatesRemoved: number;
+};
+
 export type AldeaTrailSyncResult = {
   success: true;
   timestamp: string;
   owner: string;
+  notionOrigin: NotionOriginSummary;
   inbound: InboundSummary;
   return: ReturnSummary;
   log: string[];
@@ -54,6 +74,11 @@ type StretchResolution = {
 };
 
 const ALDEA_PROJECT_NAME = "ALDEA";
+const NOTION_SYNC_PROPERTY = "ALDEA Sync";
+const NOTION_SYNC_ERROR_PROPERTY = "ALDEA Sync Error";
+const NOTION_SYNC_READY = "Ready";
+const NOTION_SYNC_SYNCED = "Synced";
+const NOTION_SYNC_ERROR = "Error";
 
 function formatNotionDate(value: string) {
   const parsed = parseSheetDate(value);
@@ -90,6 +115,76 @@ function priorityToNotion(priority: string) {
     default:
       return null;
   }
+}
+
+function priorityFromNotion(priority: string) {
+  switch (normalize(priority)) {
+    case "urgent":
+      return "Urgent";
+    case "high":
+      return "High";
+    case "mid":
+    case "medium":
+      return "Medium";
+    case "low":
+      return "Low";
+    default:
+      return "Medium";
+  }
+}
+
+function notionSourceKey(pageId: string) {
+  return `notion:${pageId}`;
+}
+
+function notionPageUrl(page: NotionPage) {
+  return page.url || `https://www.notion.so/${page.id.replace(/-/g, "")}`;
+}
+
+function richTextValue(value: string) {
+  return {
+    rich_text: value ? [{ type: "text", text: { content: value.slice(0, 2000) } }] : []
+  };
+}
+
+async function markNotionOriginError(pageId: string, message: string) {
+  await updatePage(pageId, {
+    properties: {
+      [NOTION_SYNC_PROPERTY]: { select: { name: NOTION_SYNC_ERROR } },
+      [NOTION_SYNC_ERROR_PROPERTY]: richTextValue(message)
+    }
+  });
+}
+
+async function markNotionOriginSynced(input: {
+  page: NotionTrailPage;
+  taskId: string;
+  title: string;
+  projectId: string;
+  stretch: StretchResolution;
+}) {
+  const updates: Record<string, unknown> = {
+    Task: {
+      title: [{ type: "text", text: { content: `${input.taskId} ${input.title}`.trim() } }]
+    },
+    [NOTION_SYNC_PROPERTY]: { select: { name: NOTION_SYNC_SYNCED } },
+    [NOTION_SYNC_ERROR_PROPERTY]: richTextValue("")
+  };
+
+  if (!extractSelect(input.page, "Action Stage")) {
+    updates["Action Stage"] = { status: { name: "Planned" } };
+  }
+  if (!extractSelect(input.page, "Difficulty Level")) {
+    updates["Difficulty Level"] = { select: { name: "3" } };
+  }
+  if (!extractRelationIds(input.page, "Project").length) {
+    updates.Project = { relation: [{ id: input.projectId }] };
+  }
+  if (input.stretch.id && !extractRelationIds(input.page, "Stretch").length) {
+    updates.Stretch = { relation: [{ id: input.stretch.id }] };
+  }
+
+  await updatePage(input.page.id, { properties: updates });
 }
 
 function textBlock(text: string) {
@@ -165,6 +260,8 @@ function trailProperties(input: {
     "Due Date": input.dueDate ? { date: { start: input.dueDate } } : { date: null },
     "Priority Level": input.priority ? { select: { name: input.priority } } : undefined,
     "Difficulty Level": input.difficultyLevel ? { select: { name: input.difficultyLevel } } : undefined,
+    [NOTION_SYNC_PROPERTY]: { select: { name: NOTION_SYNC_SYNCED } },
+    [NOTION_SYNC_ERROR_PROPERTY]: richTextValue(""),
     ...(input.includeStage ? { "Action Stage": { status: { name: "Planned" } } } : {}),
     ...(input.projectId ? { Project: { relation: [{ id: input.projectId }] } } : {}),
     ...(input.stretchId ? { Stretch: { relation: [{ id: input.stretchId }] } } : {})
@@ -261,6 +358,137 @@ function dedupeEligibleTasks(tasks: Task[], log: string[]) {
   return [...seen.values()];
 }
 
+async function runNotionOriginSync(input: {
+  tasks: Task[];
+  owner: string;
+  projectId: string;
+  stretch: StretchResolution;
+  log: string[];
+}) {
+  const readyTrails = await queryDatabase<NotionTrailPage>(notionConfig().trailsDatabaseId, {
+    filter: {
+      property: NOTION_SYNC_PROPERTY,
+      select: { equals: NOTION_SYNC_READY }
+    },
+    page_size: 100
+  });
+
+  const summary: NotionOriginSummary = {
+    readyDetected: readyTrails.length,
+    createdInSheets: 0,
+    recovered: 0,
+    validationErrors: 0,
+    duplicatesRemoved: 0,
+    errors: 0
+  };
+
+  let currentTasks = input.tasks;
+
+  for (const trail of readyTrails) {
+    const title = extractTitle(trail, "Task");
+    const sourceKey = notionSourceKey(trail.id);
+    const taskWithSource = currentTasks.find((task) => task.createdBy === sourceKey);
+    const embeddedTaskId = extractTaskId(title);
+    const taskWithEmbeddedId = embeddedTaskId
+      ? currentTasks.find((task) => task.taskId === embeddedTaskId)
+      : undefined;
+    const existingTask = taskWithSource || taskWithEmbeddedId;
+
+    try {
+      if (existingTask) {
+        const cleanTitle = title.replace(existingTask.taskId, "").trim();
+        await markNotionOriginSynced({
+          page: trail,
+          taskId: existingTask.taskId,
+          title: cleanTitle || existingTask.task,
+          projectId: input.projectId,
+          stretch: input.stretch
+        });
+        summary.recovered += 1;
+        input.log.push(buildLogMessage(existingTask.taskId, "reconnected to its Notion source page"));
+        continue;
+      }
+
+      if (!title) {
+        await markNotionOriginError(trail.id, "Task is required.");
+        summary.validationErrors += 1;
+        input.log.push("A Notion task was not created in Sheets because Task is empty");
+        continue;
+      }
+
+      if (embeddedTaskId) {
+        await markNotionOriginError(trail.id, `Task ID ${embeddedTaskId} was not found in Sheets.`);
+        summary.validationErrors += 1;
+        input.log.push(buildLogMessage(embeddedTaskId, "was present in a Ready Notion page but was not found in Sheets"));
+        continue;
+      }
+
+      const area = extractSelect(trail, "ALDEA Area");
+      const dueDate = extractDate(trail, "Due Date");
+
+      if (!SETUP.areas.some((validArea) => validArea === area)) {
+        await markNotionOriginError(trail.id, "Area must match an ALDEA Task Manager area.");
+        summary.validationErrors += 1;
+        input.log.push(`Notion task "${title}" has an invalid or empty Area`);
+        continue;
+      }
+
+      if (!dueDate) {
+        await markNotionOriginError(trail.id, "Due Date is required.");
+        summary.validationErrors += 1;
+        input.log.push(`Notion task "${title}" has no Due Date`);
+        continue;
+      }
+
+      const createdTask = await appendTask({
+        task: title,
+        owner: input.owner,
+        area,
+        priority: priorityFromNotion(extractSelect(trail, "Priority Level")),
+        status: "To Do",
+        dueDate,
+        blocker: "",
+        nextAction: "",
+        link: notionPageUrl(trail),
+        notes: "Created from Notion Trail.",
+        createdBy: sourceKey,
+        assignedBy: input.owner
+      });
+
+      const matchingTasks = (await getTaskRows())
+        .filter((task) => task.createdBy === sourceKey)
+        .sort((a, b) => a.rowNumber - b.rowNumber);
+      const canonicalTask = matchingTasks[0];
+
+      if (!canonicalTask) {
+        throw new Error("The new Sheet task could not be read after creation.");
+      }
+
+      if (canonicalTask.rowNumber !== createdTask.rowNumber) {
+        await deleteTaskRow(createdTask.rowNumber);
+        summary.duplicatesRemoved += 1;
+      } else {
+        summary.createdInSheets += 1;
+      }
+
+      await markNotionOriginSynced({
+        page: trail,
+        taskId: canonicalTask.taskId,
+        title,
+        projectId: input.projectId,
+        stretch: input.stretch
+      });
+      input.log.push(buildLogMessage(canonicalTask.taskId, "created in Sheets from Notion"));
+      currentTasks = await getTaskRows();
+    } catch (error) {
+      summary.errors += 1;
+      input.log.push(`Notion task "${title || trail.id}" failed during Sheet creation: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  return summary;
+}
+
 async function runInboundSync(input: {
   eligibleTasks: Task[];
   projectId: string;
@@ -333,6 +561,7 @@ async function runInboundSync(input: {
       const existingDueDate = extractDate(existing, "Due Date");
       const existingPriority = extractSelect(existing, "Priority Level");
       const existingDifficultyLevel = extractSelect(existing, "Difficulty Level");
+      const existingSyncState = extractSelect(existing, NOTION_SYNC_PROPERTY);
       const projectRelationIds = extractRelationIds(existing, "Project");
       const stretchRelationIds = extractRelationIds(existing, "Stretch");
 
@@ -357,6 +586,11 @@ async function runInboundSync(input: {
 
       if (!existingDifficultyLevel) {
         updates["Difficulty Level"] = { select: { name: difficultyLevel } };
+      }
+
+      if (existingSyncState !== NOTION_SYNC_SYNCED) {
+        updates[NOTION_SYNC_PROPERTY] = { select: { name: NOTION_SYNC_SYNCED } };
+        updates[NOTION_SYNC_ERROR_PROPERTY] = richTextValue("");
       }
 
       if (!projectRelationIds.length) {
@@ -457,7 +691,24 @@ export async function runAldeaTrailSync(): Promise<AldeaTrailSyncResult> {
   const timestamp = new Date().toISOString();
   const log: string[] = [];
 
-  const allTasks = await getTaskRows();
+  const initialTasks = await getTaskRows();
+
+  const [projectId, stretch] = await Promise.all([
+    findAldeaProjectId(),
+    findCurrentStretchId()
+  ]);
+
+  const notionOrigin = await runNotionOriginSync({
+    tasks: initialTasks,
+    owner: syncOwnerName,
+    projectId,
+    stretch,
+    log
+  });
+
+  const allTasks = notionOrigin.createdInSheets || notionOrigin.duplicatesRemoved
+    ? await getTaskRows()
+    : initialTasks;
   const eligibleTasks = dedupeEligibleTasks(
     allTasks.filter((task) => (
       Boolean(task.taskId) &&
@@ -467,11 +718,6 @@ export async function runAldeaTrailSync(): Promise<AldeaTrailSyncResult> {
     )),
     log
   );
-
-  const [projectId, stretch] = await Promise.all([
-    findAldeaProjectId(),
-    findCurrentStretchId()
-  ]);
 
   const inbound = await runInboundSync({
     eligibleTasks,
@@ -488,6 +734,7 @@ export async function runAldeaTrailSync(): Promise<AldeaTrailSyncResult> {
     success: true,
     timestamp,
     owner: syncOwnerName,
+    notionOrigin,
     inbound,
     return: returnSummary,
     log
