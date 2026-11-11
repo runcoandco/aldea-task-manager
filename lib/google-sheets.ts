@@ -136,6 +136,17 @@ export async function batchUpdateSheetValues(
   }, targetSpreadsheetId);
 }
 
+export async function appendSheetValues(
+  range: string,
+  values: (string | number)[][],
+  targetSpreadsheetId = spreadsheetId()
+) {
+  await sheetsFetch(`${valuesPath(range, ":append")}?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+    method: "POST",
+    body: JSON.stringify({ values })
+  }, targetSpreadsheetId);
+}
+
 export async function getSheetsMetadata(targetSpreadsheetId = spreadsheetId()) {
   const response = await sheetsFetch("?fields=sheets(properties(sheetId,title))", undefined, targetSpreadsheetId);
   return response.json() as Promise<{ sheets: { properties: { sheetId: number; title: string } }[] }>;

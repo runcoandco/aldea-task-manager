@@ -1,5 +1,5 @@
 import { approvedUsers, rolodexSpreadsheetId } from "./config";
-import { batchUpdateSheetValues, getSheetValues } from "./google-sheets";
+import { appendSheetValues, batchUpdateSheetValues, getSheetValues } from "./google-sheets";
 
 export type RolodexContact = {
   rowNumber: number;
@@ -13,6 +13,7 @@ export type RolodexContact = {
   work: string;
   relation: string;
   internalPrimaryContact: string;
+  categories: string[];
 };
 
 export type RolodexDraft = Omit<RolodexContact, "rowNumber" | "contactId">;
@@ -27,27 +28,57 @@ export const ROLEDEX_COLUMNS: Record<keyof RolodexDraft | "contactId", string> =
   company: "G",
   work: "H",
   relation: "I",
-  internalPrimaryContact: "J"
+  internalPrimaryContact: "J",
+  categories: "K"
 };
 
+let categoryHeaderChecked = false;
+
+async function ensureCategoryHeader() {
+  if (categoryHeaderChecked) return;
+  const spreadsheetId = rolodexSpreadsheetId();
+  const rows = await getSheetValues("Rolodex!K1", spreadsheetId);
+  const header = String(rows[0]?.[0] || "").trim();
+  if (header !== "Categories" && header !== "Category") {
+    throw new Error("Rolodex column K must have a Categories header.");
+  }
+  categoryHeaderChecked = true;
+}
+
 export async function getRolodexContacts(): Promise<RolodexContact[]> {
-  return (await getSheetValues("Rolodex!A2:J2000", rolodexSpreadsheetId()))
+  await ensureCategoryHeader();
+  return (await getSheetValues("Rolodex!A2:K", rolodexSpreadsheetId()))
     .map((row, index) => rowToContact(row, index + 2))
     .filter((contact) => contact.contactId || contact.fullName);
 }
 
 export async function updateRolodexContact(rowNumber: number, updates: Partial<RolodexDraft>) {
+  if (updates.categories !== undefined) await ensureCategoryHeader();
   const data = Object.entries(updates).flatMap(([field, value]) => {
+    if (value === undefined) return [];
     const column = ROLEDEX_COLUMNS[field as keyof RolodexDraft];
     if (!column) return [];
 
     return [{
       range: `Rolodex!${column}${rowNumber}`,
-      values: [[String(value || "").trim()]]
+      values: [[field === "categories" ? JSON.stringify(value || []) : String(value || "").trim()]]
     }];
   });
 
   await batchUpdateSheetValues(data, rolodexSpreadsheetId());
+}
+
+export async function createRolodexContact(draft: RolodexDraft) {
+  await ensureCategoryHeader();
+  const contactId = crypto.randomUUID();
+  await appendSheetValues("Rolodex!A:K", [
+    [contactId, ...Object.keys(ROLEDEX_COLUMNS)
+      .filter((field) => field !== "contactId")
+      .map((field) => field === "categories"
+        ? JSON.stringify(draft.categories)
+        : String(draft[field as keyof RolodexDraft]).trim())]
+  ], rolodexSpreadsheetId());
+  return contactId;
 }
 
 export function rolodexPrimaryContactOptions() {
@@ -71,6 +102,32 @@ function rowToContact(row: unknown[], rowNumber: number): RolodexContact {
     company: value(6),
     work: value(7),
     relation: value(8),
-    internalPrimaryContact: value(9)
+    internalPrimaryContact: value(9),
+    categories: parseCategories(value(10))
   };
+}
+
+function parseCategories(value: string): string[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    // Support categories entered directly in the Sheet.
+  }
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+export function cleanCategories(value: unknown): string[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 20 || value.some((item) => typeof item !== "string")) return null;
+  const categories: string[] = [];
+  for (const item of value as string[]) {
+    const category = item.trim();
+    if (!category || category.length > 60) return null;
+    if (!categories.some((existing) => existing.toLocaleLowerCase() === category.toLocaleLowerCase())) {
+      categories.push(category);
+    }
+  }
+  return categories;
 }

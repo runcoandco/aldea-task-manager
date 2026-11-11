@@ -37,10 +37,6 @@ export function rolodexSpreadsheetId() {
   return requiredEnv("ROLEDEX_SPREADSHEET_ID");
 }
 
-export function signalAppUrl() {
-  return requiredEnv("SIGNAL_APP_URL");
-}
-
 export function authSecret() {
   return requiredEnv("AUTH_SECRET");
 }
@@ -66,6 +62,10 @@ export function syncSecretToken() {
 
 export function signalTaskSyncSecret() {
   return process.env.SIGNAL_TASK_SYNC_SECRET || syncSecretToken();
+}
+
+export function signalAppUrl() {
+  return requiredEnv("SIGNAL_APP_URL");
 }
 
 export function notionConfig() {
