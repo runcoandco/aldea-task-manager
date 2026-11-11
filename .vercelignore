@@ -1,8 +1,21 @@
 .env
 .env.*
 !.env.example
-*.pem
-*.key
-*credentials*.json
+.vercel
+*.log
+.DS_Store
+client_secret_*.json
+aldea-task-manager-*.json
 *service-account*.json
-*service_account*.json
+*.credentials.json
+*.secret.json
+*.pem
+*.p12
+*.key
+Signal.html
+Design Documents/
+app/globals 2.css
+*.gs
+tsconfig.tsbuildinfo
+README.md
+.env.example
