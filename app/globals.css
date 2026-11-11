@@ -1118,6 +1118,7 @@ textarea:focus {
 }
 
 .rolodex-search-band,
+.rolodex-filter-band,
 .rolodex-list-card,
 .rolodex-detail-card {
   background: rgba(255, 255, 255, 0.58);
@@ -1125,9 +1126,40 @@ textarea:focus {
   border-radius: var(--radius-lg);
 }
 
-.rolodex-search-band {
+.rolodex-search-band,
+.rolodex-filter-band {
   margin-bottom: 14px;
   padding: 14px;
+}
+
+.rolodex-search-controls {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, 1fr) auto;
+}
+
+.rolodex-filter-group {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.rolodex-filter select {
+  min-width: 0;
+  width: 100%;
+}
+
+.rolodex-create-button {
+  color: #6b7457;
+  min-height: 56px;
+  white-space: nowrap;
+}
+
+.rolodex-create-button span {
+  font-size: 22px;
+  line-height: 0;
+  margin-right: 4px;
 }
 
 .rolodex-search-field input[type="search"] {
@@ -1178,6 +1210,12 @@ textarea:focus {
   min-width: 34px;
   padding: 7px 9px 6px;
   text-align: center;
+}
+
+.rolodex-list-tools {
+  align-items: center;
+  display: flex;
+  gap: 8px;
 }
 
 .rolodex-list {
@@ -1232,6 +1270,7 @@ textarea:focus {
 
 .rolodex-detail-card {
   padding: 20px;
+  scroll-margin-top: 14px;
 }
 
 .rolodex-detail-head {
@@ -1310,13 +1349,45 @@ textarea:focus {
   min-width: 0;
 }
 
-.rolodex-field span {
+.rolodex-field > span {
   color: #81856a;
   font-family: var(--font-accent);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.rolodex-category-list {
+  align-items: center;
+  background: var(--surface);
+  border: 0.5px solid rgba(165, 167, 141, 0.26);
+  border-radius: var(--radius);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 44px;
+  padding: 7px 10px;
+}
+
+.rolodex-category-chip {
+  background: var(--sage-light);
+  border: 0;
+  border-radius: 999px;
+  color: #6b7457;
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+button.rolodex-category-chip {
+  cursor: pointer;
+}
+
+.rolodex-category-controls {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
 }
 
 .rolodex-field-full {
@@ -1357,6 +1428,10 @@ textarea:focus {
 
 .rolodex-error {
   margin-top: 14px;
+}
+
+.rolodex-mobile-actions {
+  display: none;
 }
 
 .all-tasks {
@@ -1476,6 +1551,22 @@ td {
     grid-template-columns: 1fr;
   }
 
+  .rolodex-layout.is-creating .rolodex-detail-card {
+    order: -1;
+  }
+
+  .rolodex-search-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .rolodex-filter-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rolodex-category-controls {
+    grid-template-columns: 1fr;
+  }
+
   .rolodex-list {
     max-height: 340px;
   }
@@ -1486,6 +1577,13 @@ td {
 
   .rolodex-detail-actions {
     justify-content: flex-start;
+  }
+
+  .rolodex-mobile-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 18px;
   }
 
   .inline-edit-grid {
@@ -1507,6 +1605,10 @@ td {
 @media (max-width: 420px) {
   h1 {
     font-size: 23px;
+  }
+
+  .rolodex-filter-group {
+    grid-template-columns: 1fr;
   }
 
   .counter-bar {

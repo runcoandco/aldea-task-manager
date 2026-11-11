@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { canUseRolodex } from "@/lib/config";
 import { currentUser } from "@/lib/session";
-import { updateRolodexContact, type RolodexDraft } from "@/lib/rolodex";
+import { cleanCategories, updateRolodexContact, type RolodexDraft } from "@/lib/rolodex";
 
 export async function PATCH(
   request: Request,
@@ -20,6 +20,8 @@ export async function PATCH(
   if (!body?.rowNumber) {
     return NextResponse.json({ error: "Missing row number." }, { status: 400 });
   }
+  const categories = cleanCategories(body.categories);
+  if (!categories) return NextResponse.json({ error: "Invalid Categories." }, { status: 400 });
 
   const updates: Partial<RolodexDraft> = {
     fullName: body.fullName,
@@ -30,7 +32,8 @@ export async function PATCH(
     company: body.company,
     work: body.work,
     relation: body.relation,
-    internalPrimaryContact: body.internalPrimaryContact
+    internalPrimaryContact: body.internalPrimaryContact,
+    categories: body.categories === undefined ? undefined : categories
   };
 
   await updateRolodexContact(body.rowNumber, updates);

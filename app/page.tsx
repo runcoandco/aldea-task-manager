@@ -38,9 +38,9 @@ function LoginScreen({ authError }: { authError?: string }) {
 }
 
 function AppShell({
-  user}: {
+  user
+}: {
   user: AldeaUser;
-
 }) {
   const availableApps = [
     {
