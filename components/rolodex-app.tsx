@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { AldeaUser } from "@/lib/config";
 import type { RolodexContact, RolodexDraft } from "@/lib/rolodex";
 
@@ -20,24 +20,32 @@ const emptyDraft: RolodexDraft = {
   company: "",
   work: "",
   relation: "",
-  internalPrimaryContact: ""
+  internalPrimaryContact: "",
+  categories: []
 };
 
 export default function RolodexApp({ user, contacts, primaryContacts, loadError = "" }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [filters, setFilters] = useState({ lives: "", country: "", work: "", category: "" });
   const [selectedContactId, setSelectedContactId] = useState(contacts[0]?.contactId || "");
   const [editingContactId, setEditingContactId] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [draft, setDraft] = useState<RolodexDraft>(emptyDraft);
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
+  const [categoryInput, setCategoryInput] = useState("");
+  const detailRef = useRef<HTMLElement>(null);
   const [isPending, startTransition] = useTransition();
 
   const filteredContacts = useMemo(() => {
     const query = normalize(searchTerm);
-    if (!query) return contacts;
-
-    return contacts.filter((contact) => (
-      [
+    return contacts.filter((contact) => {
+      const matchesFilters = (Object.keys(filters) as (keyof typeof filters)[])
+        .every((field) => !filters[field] || (field === "category"
+          ? contact.categories.some((category) => normalize(category) === normalize(filters.category))
+          : normalize(contact[field]) === normalize(filters[field])));
+      return matchesFilters && (!query || [
         contact.fullName,
         contact.company,
         contact.work,
@@ -46,10 +54,18 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
         contact.relation,
         contact.internalPrimaryContact,
         contact.email,
-        contact.phoneNumber
-      ].some((value) => normalize(value).includes(query))
-    ));
-  }, [contacts, searchTerm]);
+        contact.phoneNumber,
+        ...contact.categories
+      ].some((value) => normalize(value).includes(query)));
+    });
+  }, [contacts, filters, searchTerm]);
+
+  const filterOptions = useMemo(() => ({
+    lives: uniqueValues(contacts.map((contact) => contact.lives)),
+    country: uniqueValues(contacts.map((contact) => contact.country)),
+    work: uniqueValues(contacts.map((contact) => contact.work)),
+    category: uniqueValues(contacts.flatMap((contact) => contact.categories))
+  }), [contacts]);
 
   useEffect(() => {
     if (!filteredContacts.length) {
@@ -69,10 +85,39 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const selectedContact = filteredContacts.find((contact) => contact.contactId === selectedContactId)
-    || contacts.find((contact) => contact.contactId === selectedContactId)
-    || null;
-  const isEditing = !!selectedContact && editingContactId === selectedContact.contactId;
+  useEffect(() => {
+    try {
+      const message = window.sessionStorage.getItem("rolodexSaveMessage");
+      const contactId = window.sessionStorage.getItem("rolodexSavedContactId");
+      window.sessionStorage.removeItem("rolodexSaveMessage");
+      window.sessionStorage.removeItem("rolodexSavedContactId");
+      if (message) setToast(message);
+      if (contactId && contacts.some((contact) => contact.contactId === contactId)) {
+        setSelectedContactId(contactId);
+      }
+    } catch {
+      // Session storage can be blocked in some mobile browser modes.
+    }
+  }, [contacts]);
+
+  useEffect(() => {
+    if (!isCreating) return;
+    const frame = window.requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isCreating]);
+
+  const selectedContact = filteredContacts.find((contact) => contact.contactId === selectedContactId) || null;
+  const isEditing = isCreating || (!!selectedContact && editingContactId === selectedContact.contactId);
+
+  function beginCreate() {
+    setDraft({ ...emptyDraft });
+    setCategoryInput("");
+    setEditingContactId("");
+    setIsCreating(true);
+    setError("");
+  }
 
   function beginEdit() {
     if (!selectedContact) return;
@@ -85,47 +130,110 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
       company: selectedContact.company,
       work: selectedContact.work,
       relation: selectedContact.relation,
-      internalPrimaryContact: selectedContact.internalPrimaryContact
+      internalPrimaryContact: selectedContact.internalPrimaryContact,
+      categories: [...selectedContact.categories]
     });
+    setCategoryInput("");
     setEditingContactId(selectedContact.contactId);
     setError("");
   }
 
   function cancelEdit() {
+    setIsCreating(false);
     setEditingContactId("");
     setDraft(emptyDraft);
+    setCategoryInput("");
+    setError("");
+  }
+
+  function reportError(message: string) {
+    setError(message);
+    window.requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function addCategory(value: string) {
+    const category = value.trim();
+    if (!category) return;
+    if (draft.categories.some((item) => normalize(item) === normalize(category))) {
+      setCategoryInput("");
+      return;
+    }
+    if (category.length > 60) {
+      reportError("Category names must be 60 characters or shorter.");
+      return;
+    }
+    if (draft.categories.length >= 20) {
+      reportError("A contact can have up to 20 Categories.");
+      return;
+    }
+    setDraft((current) => ({
+      ...current,
+      categories: [...current.categories, category]
+    }));
+    setCategoryInput("");
     setError("");
   }
 
   async function saveContact() {
-    if (!selectedContact) return;
+    if (!isCreating && !selectedContact) return;
+
+    const pendingCategory = categoryInput.trim();
+    if (pendingCategory.length > 60) {
+      reportError("Category names must be 60 characters or shorter.");
+      return;
+    }
+    const categories = pendingCategory && !draft.categories.some((item) => normalize(item) === normalize(pendingCategory))
+      ? [...draft.categories, pendingCategory]
+      : draft.categories;
+    if (categories.length > 20) {
+      reportError("A contact can have up to 20 Categories.");
+      return;
+    }
 
     if (!draft.fullName.trim()) {
-      setError("Full Name is required.");
+      reportError("Full Name is required.");
+      return;
+    }
+
+    if (isCreating && !draft.phoneNumber.trim() && !draft.email.trim()) {
+      reportError("Add a Phone Number or Email to create a contact.");
       return;
     }
 
     setError("");
 
-    const response = await fetch(`/api/rolodex/${encodeURIComponent(selectedContact.contactId)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        rowNumber: selectedContact.rowNumber,
-        ...draft
-      })
-    });
+    setIsSaving(true);
+    try {
+      const response = await fetch(isCreating ? "/api/rolodex" : `/api/rolodex/${encodeURIComponent(selectedContact!.contactId)}`, {
+        method: isCreating ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isCreating
+          ? { ...draft, categories }
+          : { rowNumber: selectedContact!.rowNumber, ...draft, categories })
+      });
 
-    if (!response.ok) {
-      setError("Contact save failed.");
-      return;
+      if (!response.ok) {
+        const result = await response.json().catch(() => null) as { error?: string } | null;
+        reportError(result?.error || "Contact save failed. Please try again.");
+        return;
+      }
+
+      const result = await response.json().catch(() => null) as { contactId?: string } | null;
+      try {
+        window.sessionStorage.setItem("rolodexSaveMessage", isCreating ? "Contact created." : "Contact saved.");
+        window.sessionStorage.setItem("rolodexSavedContactId", result?.contactId || selectedContact?.contactId || "");
+      } catch {
+        // The save succeeded even if this browser blocks session storage.
+      }
+      cancelEdit();
+      startTransition(() => window.location.reload());
+    } catch {
+      reportError("Contact save failed. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
-
-    setToast("Contact saved.");
-    cancelEdit();
-    startTransition(() => {
-      window.location.reload();
-    });
   }
 
   return (
@@ -167,22 +275,43 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
       ) : null}
 
       <section className="rolodex-search-band">
-        <label className="field rolodex-search-field">
-          <span>Search Contacts</span>
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Search by name, company, relation, or ALDEA contact"
-          />
-        </label>
+        <div className="rolodex-search-controls">
+          <label className="field rolodex-search-field">
+            <span>Search Contacts</span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search by name, company, relation, or ALDEA contact"
+            />
+          </label>
+          <button className="ghost-button rolodex-create-button" type="button" onClick={beginCreate}>
+            <span aria-hidden="true">＋</span> Create Contact
+          </button>
+        </div>
       </section>
 
-      <section className="rolodex-layout">
+      <section className="rolodex-filter-band" aria-label="Filter contacts">
+        <div className="rolodex-filter-group">
+          {(["lives", "country", "work", "category"] as const).map((field) => (
+            <label className="field rolodex-filter" key={field}>
+              <span>{field}</span>
+              <select value={filters[field]} onChange={(event) => setFilters({ ...filters, [field]: event.target.value })}>
+                <option value="">All {field === "country" ? "countries" : field === "lives" ? "locations" : field === "category" ? "categories" : "work"}</option>
+                {filterOptions[field].map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className={`rolodex-layout ${isCreating ? "is-creating" : ""}`}>
         <aside className="rolodex-list-card">
           <div className="rolodex-list-header">
             <h2>Contacts</h2>
-            <strong>{filteredContacts.length}</strong>
+            <div className="rolodex-list-tools">
+              <strong>{filteredContacts.length}</strong>
+            </div>
           </div>
           <div className="rolodex-list">
             {filteredContacts.length ? filteredContacts.map((contact) => {
@@ -193,6 +322,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
                   className={`rolodex-list-item ${active ? "is-active" : ""}`}
                   type="button"
                   onClick={() => {
+                    setIsCreating(false);
                     setSelectedContactId(contact.contactId);
                     if (editingContactId && editingContactId !== contact.contactId) {
                       cancelEdit();
@@ -209,13 +339,13 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
           </div>
         </aside>
 
-        <section className="rolodex-detail-card">
-          {selectedContact ? (
+        <section className="rolodex-detail-card" ref={detailRef}>
+          {selectedContact || isCreating ? (
             <>
               <div className="rolodex-detail-head">
                 <div>
                   <p className="rolodex-detail-kicker">Contact Detail</p>
-                  <h2>{isEditing ? draft.fullName || "Edit Contact" : selectedContact.fullName}</h2>
+                  <h2>{isCreating ? "Create Contact" : isEditing ? draft.fullName || "Edit Contact" : selectedContact?.fullName}</h2>
                 </div>
                 <div className="rolodex-detail-actions">
                   {!isEditing ? (
@@ -227,71 +357,73 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
                       <button className="ghost-button rolodex-cancel-button" type="button" onClick={cancelEdit}>
                         Cancel
                       </button>
-                      <button className="ghost-button rolodex-save-button" type="button" onClick={saveContact} disabled={isPending}>
-                        Save
+                      <button className="ghost-button rolodex-save-button" type="button" onClick={saveContact} disabled={isPending || isSaving}>
+                        {isCreating ? "Create Contact" : "Save"}
                       </button>
                     </>
                   )}
                 </div>
               </div>
 
-              <div className="rolodex-detail-pills">
+              {error ? <p className="create-task-error rolodex-error" role="alert">{error}</p> : null}
+
+              {!isCreating && selectedContact ? <div className="rolodex-detail-pills">
                 {selectedContact.company ? <span>{selectedContact.company}</span> : null}
                 {selectedContact.work ? <span>{selectedContact.work}</span> : null}
                 {selectedContact.country ? <span>{selectedContact.country}</span> : null}
-              </div>
+              </div> : null}
 
               <div className="rolodex-detail-grid">
                 <DetailField
                   label="Full Name"
                   editing={isEditing}
-                  value={isEditing ? draft.fullName : selectedContact.fullName}
+                  value={isEditing ? draft.fullName : selectedContact?.fullName || ""}
                   onChange={(value) => setDraft({ ...draft, fullName: value })}
                 />
                 <DetailField
                   label="Phone Number"
                   editing={isEditing}
-                  value={isEditing ? draft.phoneNumber : selectedContact.phoneNumber}
-                  href={!isEditing && selectedContact.phoneNumber ? `tel:${selectedContact.phoneNumber}` : undefined}
+                  value={isEditing ? draft.phoneNumber : selectedContact?.phoneNumber || ""}
+                  href={!isEditing && selectedContact?.phoneNumber ? `tel:${selectedContact.phoneNumber}` : undefined}
                   onChange={(value) => setDraft({ ...draft, phoneNumber: value })}
                   type="tel"
                 />
                 <DetailField
                   label="Email"
                   editing={isEditing}
-                  value={isEditing ? draft.email : selectedContact.email}
-                  href={!isEditing && selectedContact.email ? `mailto:${selectedContact.email}` : undefined}
+                  value={isEditing ? draft.email : selectedContact?.email || ""}
+                  href={!isEditing && selectedContact?.email ? `mailto:${selectedContact.email}` : undefined}
                   onChange={(value) => setDraft({ ...draft, email: value })}
                   type="email"
                 />
                 <DetailField
                   label="Country"
                   editing={isEditing}
-                  value={isEditing ? draft.country : selectedContact.country}
+                  value={isEditing ? draft.country : selectedContact?.country || ""}
                   onChange={(value) => setDraft({ ...draft, country: value })}
                 />
                 <DetailField
                   label="Lives"
                   editing={isEditing}
-                  value={isEditing ? draft.lives : selectedContact.lives}
+                  value={isEditing ? draft.lives : selectedContact?.lives || ""}
                   onChange={(value) => setDraft({ ...draft, lives: value })}
                 />
                 <DetailField
                   label="Company"
                   editing={isEditing}
-                  value={isEditing ? draft.company : selectedContact.company}
+                  value={isEditing ? draft.company : selectedContact?.company || ""}
                   onChange={(value) => setDraft({ ...draft, company: value })}
                 />
                 <DetailField
                   label="Work"
                   editing={isEditing}
-                  value={isEditing ? draft.work : selectedContact.work}
+                  value={isEditing ? draft.work : selectedContact?.work || ""}
                   onChange={(value) => setDraft({ ...draft, work: value })}
                 />
                 <DetailField
                   label="Relation"
                   editing={isEditing}
-                  value={isEditing ? draft.relation : selectedContact.relation}
+                  value={isEditing ? draft.relation : selectedContact?.relation || ""}
                   onChange={(value) => setDraft({ ...draft, relation: value })}
                 />
 
@@ -306,12 +438,70 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
                       {primaryContacts.map((name) => <option key={name} value={name}>{name}</option>)}
                     </select>
                   ) : (
-                    <div className="rolodex-value is-chip">{selectedContact.internalPrimaryContact || "Not set"}</div>
+                    <div className="rolodex-value">{selectedContact?.internalPrimaryContact || ""}</div>
                   )}
                 </label>
+
+                <div className="rolodex-field rolodex-field-full">
+                  <span>Categories</span>
+                  <div className="rolodex-category-list">
+                    {(isEditing ? draft.categories : selectedContact?.categories || []).map((category) => (
+                      isEditing ? (
+                        <button
+                          className="rolodex-category-chip"
+                          type="button"
+                          key={category}
+                          aria-label={`Remove ${category} category`}
+                          onClick={() => setDraft((current) => ({
+                            ...current,
+                            categories: current.categories.filter((item) => item !== category)
+                          }))}
+                        >
+                          {category} <span aria-hidden="true">×</span>
+                        </button>
+                      ) : <span className="rolodex-category-chip" key={category}>{category}</span>
+                    ))}
+                  </div>
+                  {isEditing ? (
+                    <div className="rolodex-category-controls">
+                      <select
+                        aria-label="Add existing category"
+                        value=""
+                        onChange={(event) => addCategory(event.target.value)}
+                      >
+                        <option value="">Choose existing Category</option>
+                        {filterOptions.category
+                          .filter((category) => !draft.categories.some((item) => normalize(item) === normalize(category)))
+                          .map((category) => <option value={category} key={category}>{category}</option>)}
+                      </select>
+                      <input
+                        aria-label="New Category"
+                        value={categoryInput}
+                        onChange={(event) => setCategoryInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addCategory(categoryInput);
+                          }
+                        }}
+                        placeholder="New Category"
+                      />
+                      <button className="ghost-button" type="button" onClick={() => addCategory(categoryInput)}>
+                        Add
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
-              {error ? <p className="create-task-error rolodex-error" role="alert">{error}</p> : null}
+              {isEditing ? (
+                <div className="rolodex-mobile-actions">
+                  <button className="ghost-button rolodex-cancel-button" type="button" onClick={cancelEdit}>Cancel</button>
+                  <button className="ghost-button rolodex-save-button" type="button" onClick={saveContact} disabled={isPending || isSaving}>
+                    {isCreating ? "Create Contact" : "Save"}
+                  </button>
+                </div>
+              ) : null}
             </>
           ) : (
             <div className="rolodex-empty rolodex-empty-detail">Select a contact to view details.</div>
@@ -345,7 +535,7 @@ function DetailField({
       ) : href && value ? (
         <a className="rolodex-value is-link" href={href}>{value}</a>
       ) : (
-        <div className="rolodex-value">{value || "Not set"}</div>
+        <div className="rolodex-value">{value}</div>
       )}
     </label>
   );
@@ -353,6 +543,15 @@ function DetailField({
 
 function normalize(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+function uniqueValues(values: string[]) {
+  const unique = new Map<string, string>();
+  values.forEach((value) => {
+    const trimmed = value.trim();
+    if (trimmed && !unique.has(normalize(trimmed))) unique.set(normalize(trimmed), trimmed);
+  });
+  return [...unique.values()].sort((left, right) => left.localeCompare(right));
 }
 
 function AppGridIcon() {
@@ -393,3 +592,4 @@ function SignOutIcon() {
     </svg>
   );
 }
+

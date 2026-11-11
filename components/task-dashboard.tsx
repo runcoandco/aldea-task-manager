@@ -323,7 +323,6 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
               <RolodexIcon />
             </a>
           ) : null}
-
           {user.apps.includes("signal") ? (
             <a className="icon-link" href={signalUrl} aria-label="Open Signal" title="Open Signal">
               <SignalIcon />
@@ -591,6 +590,9 @@ export default function TaskDashboard({ user, sections, owners, allTasks, duplic
                           </select>
                         </div>
                       )}
+                      {task.link ? (
+                        <a className="icon-link" href={task.link} target="_blank" rel="noreferrer">Open Link</a>
+                      ) : null}
                       <button
                         className="primary-button compact"
                         type="button"
