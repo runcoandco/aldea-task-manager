@@ -1238,6 +1238,10 @@ textarea:focus {
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
+.rolodex-list-disclosure {
+  display: none;
+}
+
 .rolodex-list-item:hover {
   border-color: rgba(129, 133, 106, 0.28);
   transform: translateY(-1px);
@@ -1271,6 +1275,10 @@ textarea:focus {
 .rolodex-detail-card {
   padding: 20px;
   scroll-margin-top: 14px;
+}
+
+.rolodex-mobile-nav {
+  display: none;
 }
 
 .rolodex-detail-head {
@@ -1551,8 +1559,48 @@ td {
     grid-template-columns: 1fr;
   }
 
-  .rolodex-layout.is-creating .rolodex-detail-card {
-    order: -1;
+  .rolodex-shell:not(.rolodex-mobile-detail) .rolodex-detail-card,
+  .rolodex-mobile-detail > .topbar,
+  .rolodex-mobile-detail > .rolodex-search-band,
+  .rolodex-mobile-detail > .rolodex-filter-band,
+  .rolodex-mobile-detail .rolodex-list-card {
+    display: none;
+  }
+
+  .rolodex-mobile-detail .rolodex-layout {
+    display: block;
+  }
+
+  .rolodex-mobile-nav {
+    display: flex;
+    margin-bottom: 20px;
+  }
+
+  .rolodex-mobile-nav button {
+    align-items: center;
+    background: none;
+    border: 0;
+    color: #6b7457;
+    cursor: pointer;
+    display: inline-flex;
+    font: inherit;
+    gap: 4px;
+    min-height: 44px;
+    padding: 0;
+  }
+
+  .rolodex-mobile-nav span {
+    font-size: 30px;
+    line-height: 1;
+  }
+
+  .rolodex-mobile-detail .rolodex-detail-kicker {
+    display: none;
+  }
+
+  .rolodex-mobile-detail .rolodex-detail-actions .rolodex-cancel-button,
+  .rolodex-mobile-detail .rolodex-detail-actions .rolodex-save-button {
+    display: none;
   }
 
   .rolodex-search-controls {
@@ -1568,7 +1616,23 @@ td {
   }
 
   .rolodex-list {
-    max-height: 340px;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .rolodex-list-item {
+    min-height: 64px;
+    padding-right: 42px;
+    position: relative;
+  }
+
+  .rolodex-list-disclosure {
+    display: block;
+    font-size: 26px;
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
   }
 
   .rolodex-detail-head {
