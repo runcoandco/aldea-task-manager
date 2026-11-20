@@ -31,6 +31,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
   const [editingContactId, setEditingContactId] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [draft, setDraft] = useState<RolodexDraft>(emptyDraft);
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
@@ -366,7 +367,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(isCreating
           ? { ...draft, categories }
-          : { rowNumber: selectedContact!.rowNumber, ...draft, categories })
+          : { ...draft, categories })
       });
 
       if (!response.ok) {
@@ -399,6 +400,36 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
       reportError("Contact save failed. Please try again.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function deleteContact() {
+    if (!selectedContact || isCreating || editingContactId !== selectedContact.contactId || isDeleting) return;
+    if (!window.confirm(`Delete ${selectedContact.fullName}? This removes the contact from the shared Rolodex.`)) return;
+
+    setError("");
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/rolodex/${encodeURIComponent(selectedContact.contactId)}`, {
+        method: "DELETE"
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null) as { error?: string } | null;
+        reportError(result?.error || "Contact could not be deleted.");
+        return;
+      }
+      try {
+        window.sessionStorage.setItem("rolodexSaveMessage", "Contact deleted.");
+        window.sessionStorage.removeItem("rolodexSavedContactId");
+      } catch {
+        // The deletion succeeded even if this browser blocks session storage.
+      }
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+      startTransition(() => window.location.reload());
+    } catch {
+      reportError("Contact could not be deleted.");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -506,7 +537,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
 
         <section className="rolodex-detail-card" ref={detailRef} tabIndex={-1}>
           <nav className="rolodex-back-nav" aria-label="Contact navigation">
-            <button type="button" onClick={goBack} aria-label={editingContactId && !isCreating ? `Back to ${selectedContact?.fullName || "Contact"}` : "Back to Contacts"}>
+            <button type="button" onClick={goBack} disabled={isDeleting} aria-label={editingContactId && !isCreating ? `Back to ${selectedContact?.fullName || "Contact"}` : "Back to Contacts"}>
               <span aria-hidden="true">‹</span> {editingContactId && !isCreating ? selectedContact?.fullName || "Contact" : "Contacts"}
             </button>
           </nav>
@@ -524,10 +555,10 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
                     </button>
                   ) : (
                     <>
-                      <button className="ghost-button rolodex-cancel-button" type="button" onClick={cancelEdit}>
+                      <button className="ghost-button rolodex-cancel-button" type="button" onClick={cancelEdit} disabled={isDeleting || isSaving}>
                         Cancel
                       </button>
-                      <button className="ghost-button rolodex-save-button" type="button" onClick={saveContact} disabled={isPending || isSaving}>
+                      <button className="ghost-button rolodex-save-button" type="button" onClick={saveContact} disabled={isPending || isSaving || isDeleting}>
                         {isCreating ? "Create Contact" : "Save"}
                       </button>
                     </>
@@ -681,9 +712,16 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
 
               {isEditing ? (
                 <div className="rolodex-mobile-actions">
-                  <button className="ghost-button rolodex-cancel-button" type="button" onClick={cancelEdit}>Cancel</button>
-                  <button className="ghost-button rolodex-save-button" type="button" onClick={saveContact} disabled={isPending || isSaving}>
+                  <button className="ghost-button rolodex-cancel-button" type="button" onClick={cancelEdit} disabled={isDeleting || isSaving}>Cancel</button>
+                  <button className="ghost-button rolodex-save-button" type="button" onClick={saveContact} disabled={isPending || isSaving || isDeleting}>
                     {isCreating ? "Create Contact" : "Save"}
+                  </button>
+                </div>
+              ) : null}
+              {isEditing && !isCreating && selectedContact ? (
+                <div className="rolodex-delete-action">
+                  <button className="ghost-button rolodex-delete-button" type="button" onClick={deleteContact} disabled={isPending || isSaving || isDeleting}>
+                    {isDeleting ? "Deleting…" : "Delete Contact"}
                   </button>
                 </div>
               ) : null}
