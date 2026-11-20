@@ -28,6 +28,8 @@ type NotionRelationProperty = {
 export type NotionPage = {
   id: string;
   url?: string;
+  in_trash?: boolean;
+  archived?: boolean;
   properties: Record<string, NotionTitleProperty | NotionSelectProperty | NotionDateProperty | NotionRelationProperty | undefined>;
 };
 
@@ -96,6 +98,10 @@ export async function createPage(body: Record<string, unknown>) {
     method: "POST",
     body: JSON.stringify(body)
   });
+}
+
+export async function retrievePage(pageId: string) {
+  return notionFetch<NotionPage>(`/pages/${pageId}`);
 }
 
 export async function updatePage(pageId: string, body: Record<string, unknown>) {
