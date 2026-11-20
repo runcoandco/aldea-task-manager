@@ -35,21 +35,12 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
   const [categoryInput, setCategoryInput] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
-  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+  const [currentView, setCurrentView] = useState<"list" | "detail">("list");
   const listScrollY = useRef(0);
   const editorNavigation = useRef({ active: false, dirty: false, hash: "" });
   const skipNavigationPrompt = useRef(false);
   const detailRef = useRef<HTMLElement>(null);
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 860px)");
-    const update = () => setIsMobile(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
 
   const filteredContacts = useMemo(() => {
     const query = normalize(searchTerm);
@@ -80,8 +71,36 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
     category: uniqueValues(contacts.flatMap((contact) => contact.categories))
   }), [contacts]);
 
+  const similarContacts = useMemo(() => {
+    if (!isCreating) return [];
+    const name = normalizeContactName(draft.fullName);
+    const email = normalize(draft.email);
+    const phone = phoneDigits(draft.phoneNumber);
+    return contacts.flatMap((contact) => {
+      const contactName = normalizeContactName(contact.fullName);
+      let reason = "";
+      let score = 0;
+      if (email.includes("@") && email === normalize(contact.email)) {
+        reason = "Same email";
+        score = 3;
+      } else if (phone.length >= 6 && phone === phoneDigits(contact.phoneNumber)) {
+        reason = "Same phone";
+        score = 3;
+      } else if (name.length >= 4 && contactName) {
+        if (name === contactName) {
+          reason = "Same name";
+          score = 2;
+        } else if (contactName.includes(name) || (name.length >= 6 && name.includes(contactName))) {
+          reason = "Similar name";
+          score = 1;
+        }
+      }
+      return score ? [{ contact, reason, score }] : [];
+    }).sort((left, right) => right.score - left.score || left.contact.fullName.localeCompare(right.contact.fullName)).slice(0, 4);
+  }, [contacts, draft.email, draft.fullName, draft.phoneNumber, isCreating]);
+
   useEffect(() => {
-    if (isMobile && mobileView === "detail") return;
+    if (currentView === "detail") return;
     if (!filteredContacts.length) {
       setSelectedContactId("");
       return;
@@ -91,10 +110,9 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
     if (!exists) {
       setSelectedContactId(filteredContacts[0].contactId);
     }
-  }, [filteredContacts, selectedContactId, isMobile, mobileView]);
+  }, [filteredContacts, selectedContactId, currentView]);
 
   useEffect(() => {
-    if (!isMobile) return;
     const syncFromUrl = (event?: Event) => {
       const hash = window.location.hash;
       const bypassPrompt = skipNavigationPrompt.current;
@@ -107,7 +125,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
       }
       if (hash === "#new") {
         setIsCreating(true);
-        setMobileView("detail");
+        setCurrentView("detail");
       } else if (hash.startsWith("#edit=")) {
         const contactId = decodeURIComponent(hash.slice(6));
         const contact = contacts.find((item) => item.contactId === contactId);
@@ -119,9 +137,9 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
             setDraft(contactDraft(contact));
             setCategoryInput("");
           }
-          setMobileView("detail");
+          setCurrentView("detail");
         } else {
-          setMobileView("list");
+          setCurrentView("list");
         }
       } else if (hash.startsWith("#contact=")) {
         const contactId = decodeURIComponent(hash.slice(9));
@@ -132,9 +150,9 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
           setDraft(emptyDraft);
           setCategoryInput("");
           setError("");
-          setMobileView("detail");
+          setCurrentView("detail");
         } else {
-          setMobileView("list");
+          setCurrentView("list");
         }
       } else {
         setIsCreating(false);
@@ -142,7 +160,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
         setDraft(emptyDraft);
         setCategoryInput("");
         setError("");
-        setMobileView("list");
+        setCurrentView("list");
         window.requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
       }
     };
@@ -151,13 +169,17 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
     return () => {
       window.removeEventListener("popstate", syncFromUrl);
     };
-  }, [isMobile, contacts]);
+  }, [contacts]);
 
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 3200);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (currentView === "detail") detailRef.current?.focus();
+  }, [currentView]);
 
   useEffect(() => {
     try {
@@ -174,14 +196,6 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
     }
   }, [contacts]);
 
-  useEffect(() => {
-    if (!isCreating || isMobile) return;
-    const frame = window.requestAnimationFrame(() => {
-      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [isCreating, isMobile]);
-
   const selectedContact = contacts.find((contact) => contact.contactId === selectedContactId) || null;
   const isEditing = isCreating || (!!selectedContact && editingContactId === selectedContact.contactId);
 
@@ -193,32 +207,31 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
     };
   });
 
-  function openMobileView(hash: string) {
-    if (!isMobile) return;
-    if (mobileView === "list") listScrollY.current = window.scrollY;
-    window.history.pushState({ ...window.history.state, rolodexMobile: true }, "", hash);
-    setMobileView("detail");
+  function openContactView(hash: string) {
+    if (currentView === "list") listScrollY.current = window.scrollY;
+    window.history.pushState({ ...window.history.state, rolodexView: true }, "", hash);
+    setCurrentView("detail");
     window.scrollTo(0, 0);
   }
 
   function returnToList() {
-    if (window.history.state?.rolodexMobile) {
+    if (window.history.state?.rolodexView || window.history.state?.rolodexMobile) {
       window.history.back();
     } else {
       window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
       skipNavigationPrompt.current = false;
-      setMobileView("list");
+      setCurrentView("list");
       window.requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
     }
   }
 
   function returnToContact() {
-    if (window.history.state?.rolodexMobile && window.location.hash.startsWith("#edit=")) {
+    if ((window.history.state?.rolodexView || window.history.state?.rolodexMobile) && window.location.hash.startsWith("#edit=")) {
       window.history.back();
     } else {
       window.history.replaceState(window.history.state, "", `#contact=${encodeURIComponent(selectedContactId)}`);
       skipNavigationPrompt.current = false;
-      setMobileView("detail");
+      setCurrentView("detail");
     }
   }
 
@@ -232,7 +245,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
         : draft[field] !== selectedContact[field]);
   }
 
-  function mobileBack() {
+  function goBack() {
     if (isEditing && hasUnsavedChanges() && !window.confirm("Discard unsaved changes?")) return;
     const wasEditing = !!editingContactId && !isCreating;
     skipNavigationPrompt.current = true;
@@ -251,7 +264,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
     setEditingContactId("");
     setIsCreating(true);
     setError("");
-    openMobileView("#new");
+    openContactView("#new");
   }
 
   function beginEdit() {
@@ -260,20 +273,32 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
     setCategoryInput("");
     setEditingContactId(selectedContact.contactId);
     setError("");
-    openMobileView(`#edit=${encodeURIComponent(selectedContact.contactId)}`);
+    openContactView(`#edit=${encodeURIComponent(selectedContact.contactId)}`);
+  }
+
+  function viewSuggestedContact(contactId: string) {
+    if (hasUnsavedChanges() && !window.confirm("Discard this new contact and view the saved contact?")) return;
+    setIsCreating(false);
+    setDraft(emptyDraft);
+    setCategoryInput("");
+    setError("");
+    setSelectedContactId(contactId);
+    window.history.replaceState({ ...window.history.state, rolodexView: true }, "", `#contact=${encodeURIComponent(contactId)}`);
+    setCurrentView("detail");
+    window.scrollTo(0, 0);
   }
 
   function cancelEdit() {
     const wasCreating = isCreating;
     const wasEditing = !!editingContactId && !isCreating;
-    if (isMobile && (wasCreating || wasEditing)) skipNavigationPrompt.current = true;
+    if (wasCreating || wasEditing) skipNavigationPrompt.current = true;
     setIsCreating(false);
     setEditingContactId("");
     setDraft(emptyDraft);
     setCategoryInput("");
     setError("");
-    if (wasCreating && isMobile) returnToList();
-    else if (wasEditing && isMobile) returnToContact();
+    if (wasCreating) returnToList();
+    else if (wasEditing) returnToContact();
   }
 
   function reportError(message: string) {
@@ -357,13 +382,13 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
       } catch {
         // The save succeeded even if this browser blocks session storage.
       }
-      const savedFromMobileEdit = isMobile && !isCreating && window.location.hash.startsWith("#edit=") && !!window.history.state?.rolodexMobile;
-      if (isMobile && !savedFromMobileEdit && (result?.contactId || selectedContact?.contactId)) {
-        window.history.replaceState({ ...window.history.state, rolodexMobile: true }, "", `#contact=${encodeURIComponent(result?.contactId || selectedContact!.contactId)}`);
+      const savedFromEdit = !isCreating && window.location.hash.startsWith("#edit=") && !!(window.history.state?.rolodexView || window.history.state?.rolodexMobile);
+      if (!savedFromEdit && (result?.contactId || selectedContact?.contactId)) {
+        window.history.replaceState({ ...window.history.state, rolodexView: true }, "", `#contact=${encodeURIComponent(result?.contactId || selectedContact!.contactId)}`);
       }
       setIsCreating(false);
       setEditingContactId("");
-      if (savedFromMobileEdit) {
+      if (savedFromEdit) {
         skipNavigationPrompt.current = true;
         window.addEventListener("popstate", () => window.location.reload(), { once: true });
         window.history.back();
@@ -378,7 +403,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
   }
 
   return (
-    <main className={`app-shell rolodex-shell ${mobileView === "detail" ? "rolodex-mobile-detail" : ""}`}>
+    <main className={`app-shell rolodex-shell ${currentView === "detail" ? "rolodex-contact-view" : ""}`}>
       {toast ? <div className="toast" role="status">{toast}</div> : null}
 
       <header className="topbar">
@@ -415,24 +440,16 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
         </div>
       ) : null}
 
-      <section className="rolodex-search-band">
-        <div className="rolodex-search-controls">
-          <label className="field rolodex-search-field">
-            <span>Search Contacts</span>
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search by name, company, relation, or ALDEA contact"
-            />
-          </label>
-          <button className="ghost-button rolodex-create-button" type="button" onClick={beginCreate}>
-            <span aria-hidden="true">＋</span> Create Contact
-          </button>
-        </div>
-      </section>
-
-      <section className="rolodex-filter-band" aria-label="Filter contacts">
+      <section className="rolodex-directory-tools" aria-label="Find contacts">
+        <label className="field rolodex-search-field">
+          <span>Search Contacts</span>
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search name, company, or contact details"
+          />
+        </label>
         <div className="rolodex-filter-group">
           {(["lives", "country", "work", "category"] as const).map((field) => (
             <label className="field rolodex-filter" key={field}>
@@ -446,12 +463,17 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
         </div>
       </section>
 
-      <section className={`rolodex-layout ${isCreating ? "is-creating" : ""}`}>
+      <section className="rolodex-layout">
         <aside className="rolodex-list-card">
           <div className="rolodex-list-header">
-            <h2>Contacts</h2>
+            <div>
+              <h2>Contacts</h2>
+              <p>{filteredContacts.length} of {contacts.length}</p>
+            </div>
             <div className="rolodex-list-tools">
-              <strong>{filteredContacts.length}</strong>
+              <button className="ghost-button rolodex-create-button" type="button" onClick={beginCreate}>
+                <span aria-hidden="true">＋</span> Create Contact
+              </button>
             </div>
           </div>
           <div className="rolodex-list">
@@ -468,7 +490,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
                     if (editingContactId && editingContactId !== contact.contactId) {
                       cancelEdit();
                     }
-                    openMobileView(`#contact=${encodeURIComponent(contact.contactId)}`);
+                    openContactView(`#contact=${encodeURIComponent(contact.contactId)}`);
                   }}
                 >
                   <strong>{contact.fullName || "Unnamed Contact"}</strong>
@@ -482,9 +504,9 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
           </div>
         </aside>
 
-        <section className="rolodex-detail-card" ref={detailRef}>
-          <nav className="rolodex-mobile-nav" aria-label="Contact navigation">
-            <button type="button" onClick={mobileBack} aria-label={editingContactId && !isCreating ? `Back to ${selectedContact?.fullName || "Contact"}` : "Back to Contacts"}>
+        <section className="rolodex-detail-card" ref={detailRef} tabIndex={-1}>
+          <nav className="rolodex-back-nav" aria-label="Contact navigation">
+            <button type="button" onClick={goBack} aria-label={editingContactId && !isCreating ? `Back to ${selectedContact?.fullName || "Contact"}` : "Back to Contacts"}>
               <span aria-hidden="true">‹</span> {editingContactId && !isCreating ? selectedContact?.fullName || "Contact" : "Contacts"}
             </button>
           </nav>
@@ -492,7 +514,7 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
             <>
               <div className="rolodex-detail-head">
                 <div>
-                  <p className="rolodex-detail-kicker">Contact Detail</p>
+                  <p className="rolodex-detail-kicker">{isCreating ? "New Contact" : "Contact"}</p>
                   <h2>{isCreating ? "Create Contact" : isEditing ? draft.fullName || "Edit Contact" : selectedContact?.fullName}</h2>
                 </div>
                 <div className="rolodex-detail-actions">
@@ -522,12 +544,14 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
               </div> : null}
 
               <div className="rolodex-detail-grid">
-                <DetailField
-                  label="Full Name"
-                  editing={isEditing}
-                  value={isEditing ? draft.fullName : selectedContact?.fullName || ""}
-                  onChange={(value) => setDraft({ ...draft, fullName: value })}
-                />
+                <div className="rolodex-name-field">
+                  <DetailField
+                    label="Full Name"
+                    editing={isEditing}
+                    value={isEditing ? draft.fullName : selectedContact?.fullName || ""}
+                    onChange={(value) => setDraft({ ...draft, fullName: value })}
+                  />
+                </div>
                 <DetailField
                   label="Phone Number"
                   editing={isEditing}
@@ -544,6 +568,19 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
                   onChange={(value) => setDraft({ ...draft, email: value })}
                   type="email"
                 />
+                {isCreating && similarContacts.length ? (
+                  <div className="rolodex-similar" aria-live="polite">
+                    <strong>Possible existing contacts</strong>
+                    <div className="rolodex-similar-list">
+                      {similarContacts.map(({ contact, reason }) => (
+                        <button type="button" key={contact.contactId} onClick={() => viewSuggestedContact(contact.contactId)}>
+                          <span><b>{contact.fullName}</b><small>{contact.company || contact.relation || "Saved contact"}</small></span>
+                          <span className="rolodex-similar-reason">{reason} · View</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <DetailField
                   label="Country"
                   editing={isEditing}
@@ -706,6 +743,14 @@ function DetailField({
 
 function normalize(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+function normalizeContactName(value: string) {
+  return normalize(value).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function phoneDigits(value: string) {
+  return value.replace(/\D/g, "");
 }
 
 function uniqueValues(values: string[]) {
