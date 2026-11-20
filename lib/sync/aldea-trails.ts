@@ -6,7 +6,8 @@
  * What this script does:
  * 1. Syncs assigned Sheet tasks into Notion.
  * 2. Creates Sheet tasks from approved Notion templates.
- * 3. Returns Achieved tasks to Sheets as Done.
+ * 3. Returns Achieved and Failed tasks to Sheets as Done.
+ * 4. Removes Sheet tasks whose Notion source page is in Trash.
  */
 
 import { notionConfig } from "@/lib/config";
@@ -19,6 +20,7 @@ import {
   extractTitle,
   type NotionPage,
   queryDatabase,
+  retrievePage,
   updatePage
 } from "@/lib/notion";
 import { normalize, parseSheetDate, SETUP, type Task } from "@/lib/tasks";
@@ -37,6 +39,7 @@ type InboundSummary = SyncSectionSummary & {
 
 type ReturnSummary = SyncSectionSummary & {
   achievedDetected: number;
+  failedDetected: number;
   markedDone: number;
   alreadyDone: number;
   notFoundInSheet: number;
@@ -619,51 +622,83 @@ async function runInboundSync(input: {
   return summary;
 }
 
-async function runReturnSync(input: { log: string[]; tasksById: Map<string, Task> }) {
+async function removeTrashedNotionOriginTasks(input: {
+  tasks: Task[];
+  activePageIds: Set<string>;
+  log: string[];
+}) {
+  const unavailableTaskIds = new Set<string>();
+  const rowsToDelete: Task[] = [];
+  const pageCache = new Map<string, NotionPage>();
+
+  for (const task of input.tasks) {
+    if (!task.createdBy.startsWith("notion:")) continue;
+    const pageId = task.createdBy.slice("notion:".length);
+    if (!pageId || input.activePageIds.has(pageId)) continue;
+
+    try {
+      let page = pageCache.get(pageId);
+      if (!page) {
+        page = await retrievePage(pageId);
+        pageCache.set(pageId, page);
+      }
+      if (page.in_trash === true || page.archived === true) {
+        rowsToDelete.push(task);
+      } else {
+        unavailableTaskIds.add(task.taskId);
+        input.log.push(buildLogMessage(task.taskId, "Notion source is outside Trails; Sheet task retained"));
+      }
+    } catch (error) {
+      unavailableTaskIds.add(task.taskId);
+      input.log.push(buildLogMessage(task.taskId, `could not verify Notion source; Sheet task retained: ${error instanceof Error ? error.message : "Unknown error"}`));
+    }
+  }
+
+  let removed = 0;
+  for (const task of rowsToDelete.sort((a, b) => b.rowNumber - a.rowNumber)) {
+    try {
+      await deleteTaskRow(task.rowNumber);
+      removed += 1;
+      input.log.push(buildLogMessage(task.taskId, "removed from Sheets because its Notion source is in Trash"));
+    } catch (error) {
+      unavailableTaskIds.add(task.taskId);
+      input.log.push(buildLogMessage(task.taskId, `could not remove trashed Notion source task: ${error instanceof Error ? error.message : "Unknown error"}`));
+    }
+  }
+
+  return { removed, unavailableTaskIds };
+}
+
+async function runReturnSync(input: {
+  log: string[];
+  tasksById: Map<string, Task>;
+  trails: NotionTrailPage[];
+}) {
   const summary: ReturnSummary = {
     achievedDetected: 0,
+    failedDetected: 0,
     markedDone: 0,
     alreadyDone: 0,
     notFoundInSheet: 0,
     errors: 0
   };
+  const handledTaskIds = new Set<string>();
 
-  const achievedTrails = await queryDatabase<NotionTrailPage>(notionConfig().trailsDatabaseId, {
-    filter: {
-      and: [
-        {
-          property: "Action Stage",
-          status: {
-            equals: "Achieved"
-          }
-        },
-        {
-          property: "Task",
-          title: {
-            contains: "TASK-"
-          }
-        }
-      ]
-    },
-    page_size: 100
-  });
-
-  summary.achievedDetected = achievedTrails.length;
-
-  for (const trail of achievedTrails) {
+  for (const trail of input.trails) {
+    const stage = extractSelect(trail, "Action Stage");
+    if (stage !== "Achieved" && stage !== "Failed") continue;
     const title = extractTitle(trail, "Task");
     const taskId = extractTaskId(title);
-
-    if (!taskId) {
-      summary.errors += 1;
-      input.log.push(`Could not parse Task ID from Trail title "${title}"`);
-      continue;
-    }
+    if (!taskId || !title.startsWith(taskId)) continue;
+    if (stage === "Achieved") summary.achievedDetected += 1;
+    else summary.failedDetected += 1;
+    if (handledTaskIds.has(taskId)) continue;
+    handledTaskIds.add(taskId);
 
     const task = input.tasksById.get(taskId);
     if (!task) {
       summary.notFoundInSheet += 1;
-      input.log.push(buildLogMessage(taskId, "is Achieved in Notion but was not found in Sheets"));
+      input.log.push(buildLogMessage(taskId, `is ${stage} in Notion but was not found in Sheets`));
       continue;
     }
 
@@ -676,7 +711,7 @@ async function runReturnSync(input: { log: string[]; tasksById: Map<string, Task
     try {
       await updateTaskCells(task.rowNumber, { status: "Done" });
       summary.markedDone += 1;
-      input.log.push(buildLogMessage(taskId, "marked Done in Sheets"));
+      input.log.push(buildLogMessage(taskId, `marked Done in Sheets because it is ${stage} in Notion`));
     } catch (error) {
       summary.errors += 1;
       input.log.push(buildLogMessage(taskId, `failed during return sync: ${error instanceof Error ? error.message : "Unknown error"}`));
@@ -706,13 +741,28 @@ export async function runAldeaTrailSync(): Promise<AldeaTrailSyncResult> {
     log
   });
 
-  const allTasks = notionOrigin.createdInSheets || notionOrigin.duplicatesRemoved
+  let allTasks = notionOrigin.createdInSheets || notionOrigin.duplicatesRemoved
     ? await getTaskRows()
     : initialTasks;
+  const activeTrails = await queryDatabase<NotionTrailPage>(notionConfig().trailsDatabaseId, {
+    page_size: 100
+  });
+  const removal = await removeTrashedNotionOriginTasks({
+    tasks: allTasks,
+    activePageIds: new Set(activeTrails.map((trail) => trail.id)),
+    log
+  });
+  if (removal.removed) allTasks = await getTaskRows();
+
+  const tasksById = new Map(allTasks.map((task) => [task.taskId, task]));
+  const returnSummary = await runReturnSync({ log, tasksById, trails: activeTrails });
+  if (returnSummary.markedDone) allTasks = await getTaskRows();
+
   const eligibleTasks = dedupeEligibleTasks(
     allTasks.filter((task) => (
       Boolean(task.taskId) &&
       Boolean(task.task) &&
+      !removal.unavailableTaskIds.has(task.taskId) &&
       task.owner.trim() === syncOwnerName &&
       normalize(task.status) !== "done"
     )),
@@ -726,9 +776,6 @@ export async function runAldeaTrailSync(): Promise<AldeaTrailSyncResult> {
     log
   });
   inbound.tasksRead = allTasks.length;
-
-  const tasksById = new Map(allTasks.map((task) => [task.taskId, task]));
-  const returnSummary = await runReturnSync({ log, tasksById });
 
   return {
     success: true,
