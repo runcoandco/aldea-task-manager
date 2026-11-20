@@ -152,6 +152,33 @@ export async function getSheetsMetadata(targetSpreadsheetId = spreadsheetId()) {
   return response.json() as Promise<{ sheets: { properties: { sheetId: number; title: string } }[] }>;
 }
 
+export async function deleteSheetRow(sheetName: string, rowNumber: number, targetSpreadsheetId = spreadsheetId()) {
+  if (!Number.isInteger(rowNumber) || rowNumber < 2) {
+    throw new Error("Invalid sheet row number");
+  }
+  const metadata = await getSheetsMetadata(targetSpreadsheetId);
+  const sheetId = metadata.sheets.find((sheet) => sheet.properties.title === sheetName)?.properties.sheetId;
+  if (typeof sheetId !== "number") {
+    throw new Error(`Could not find ${sheetName} sheet ID`);
+  }
+
+  await sheetsFetch(":batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [{
+        deleteDimension: {
+          range: {
+            sheetId,
+            dimension: "ROWS",
+            startIndex: rowNumber - 1,
+            endIndex: rowNumber
+          }
+        }
+      }]
+    })
+  }, targetSpreadsheetId);
+}
+
 function valuesPath(range: string, suffix = "") {
   return `/values/${encodeURIComponent(range)}${suffix}`;
 }

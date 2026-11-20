@@ -1,5 +1,5 @@
 import { approvedUsers, rolodexSpreadsheetId } from "./config";
-import { appendSheetValues, batchUpdateSheetValues, getSheetValues } from "./google-sheets";
+import { appendSheetValues, batchUpdateSheetValues, deleteSheetRow, getSheetValues } from "./google-sheets";
 
 export type RolodexContact = {
   rowNumber: number;
@@ -52,7 +52,18 @@ export async function getRolodexContacts(): Promise<RolodexContact[]> {
     .filter((contact) => contact.contactId || contact.fullName);
 }
 
-export async function updateRolodexContact(rowNumber: number, updates: Partial<RolodexDraft>) {
+async function findRolodexRow(contactId: string): Promise<number | "not-found" | "duplicate"> {
+  if (!contactId) return "not-found";
+  const rows = await getSheetValues("Rolodex!A2:A", rolodexSpreadsheetId());
+  const matches = rows.flatMap((row, index) => String(row[0] || "").trim() === contactId ? [index + 2] : []);
+  if (!matches.length) return "not-found";
+  if (matches.length > 1) return "duplicate";
+  return matches[0];
+}
+
+export async function updateRolodexContact(contactId: string, updates: Partial<RolodexDraft>): Promise<"updated" | "not-found" | "duplicate"> {
+  const rowNumber = await findRolodexRow(contactId);
+  if (typeof rowNumber !== "number") return rowNumber;
   if (updates.categories !== undefined) await ensureCategoryHeader();
   const data = Object.entries(updates).flatMap(([field, value]) => {
     if (value === undefined) return [];
@@ -66,6 +77,7 @@ export async function updateRolodexContact(rowNumber: number, updates: Partial<R
   });
 
   await batchUpdateSheetValues(data, rolodexSpreadsheetId());
+  return "updated";
 }
 
 export async function createRolodexContact(draft: RolodexDraft) {
@@ -79,6 +91,14 @@ export async function createRolodexContact(draft: RolodexDraft) {
         : String(draft[field as keyof RolodexDraft]).trim())]
   ], rolodexSpreadsheetId());
   return contactId;
+}
+
+export async function deleteRolodexContact(contactId: string): Promise<"deleted" | "not-found" | "duplicate"> {
+  const rowNumber = await findRolodexRow(contactId);
+  if (typeof rowNumber !== "number") return rowNumber;
+  const spreadsheetId = rolodexSpreadsheetId();
+  await deleteSheetRow("Rolodex", rowNumber, spreadsheetId);
+  return "deleted";
 }
 
 export function rolodexPrimaryContactOptions() {
