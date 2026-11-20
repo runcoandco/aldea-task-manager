@@ -1531,6 +1531,22 @@ button.rolodex-category-chip {
   display: none;
 }
 
+.rolodex-delete-action {
+  border-top: 1px solid var(--border);
+  margin-top: 32px;
+  padding-top: 24px;
+}
+
+.rolodex-delete-button {
+  border-color: rgba(160, 69, 58, 0.38);
+  color: var(--danger);
+  min-height: 44px;
+}
+
+.rolodex-delete-button:hover {
+  background: var(--danger-bg);
+}
+
 .all-tasks {
   margin-top: 28px;
 }
