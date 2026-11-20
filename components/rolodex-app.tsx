@@ -26,7 +26,7 @@ const emptyDraft: RolodexDraft = {
 
 export default function RolodexApp({ user, contacts, primaryContacts, loadError = "" }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({ lives: "", country: "", work: "", category: "" });
+  const [filters, setFilters] = useState({ lives: "", country: "", work: "", category: "", internalPrimaryContact: "" });
   const [selectedContactId, setSelectedContactId] = useState(contacts[0]?.contactId || "");
   const [editingContactId, setEditingContactId] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -49,7 +49,9 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
       const matchesFilters = (Object.keys(filters) as (keyof typeof filters)[])
         .every((field) => !filters[field] || (field === "category"
           ? contact.categories.some((category) => normalize(category) === normalize(filters.category))
-          : normalize(contact[field]) === normalize(filters[field])));
+          : field === "internalPrimaryContact" && filters.internalPrimaryContact === "__unassigned__"
+            ? !contact.internalPrimaryContact.trim()
+            : normalize(contact[field]) === normalize(filters[field])));
       return matchesFilters && (!query || [
         contact.fullName,
         contact.company,
@@ -69,7 +71,8 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
     lives: uniqueValues(contacts.map((contact) => contact.lives)),
     country: uniqueValues(contacts.map((contact) => contact.country)),
     work: uniqueValues(contacts.map((contact) => contact.work)),
-    category: uniqueValues(contacts.flatMap((contact) => contact.categories))
+    category: uniqueValues(contacts.flatMap((contact) => contact.categories)),
+    internalPrimaryContact: uniqueValues(contacts.map((contact) => contact.internalPrimaryContact))
   }), [contacts]);
 
   const similarContacts = useMemo(() => {
@@ -482,12 +485,13 @@ export default function RolodexApp({ user, contacts, primaryContacts, loadError 
           />
         </label>
         <div className="rolodex-filter-group">
-          {(["lives", "country", "work", "category"] as const).map((field) => (
+          {(["lives", "country", "work", "category", "internalPrimaryContact"] as const).map((field) => (
             <label className="field rolodex-filter" key={field}>
-              <span>{field}</span>
+              <span>{field === "internalPrimaryContact" ? "Owner" : field}</span>
               <select value={filters[field]} onChange={(event) => setFilters({ ...filters, [field]: event.target.value })}>
-                <option value="">All {field === "country" ? "countries" : field === "lives" ? "locations" : field === "category" ? "categories" : "work"}</option>
+                <option value="">All {field === "country" ? "countries" : field === "lives" ? "locations" : field === "category" ? "categories" : field === "internalPrimaryContact" ? "owners" : "work"}</option>
                 {filterOptions[field].map((value) => <option key={value} value={value}>{value}</option>)}
+                {field === "internalPrimaryContact" && contacts.some((contact) => !contact.internalPrimaryContact.trim()) && <option value="__unassigned__">Unassigned</option>}
               </select>
             </label>
           ))}
